@@ -1,14 +1,17 @@
-Header and Description:
-This is the project: "AI-based Vibroacoustic Machinery State Monitoring and Diagnostics System"
+AI-based Vibroacoustic Machinery State Monitoring and Diagnostics System
 
 
-Tech Stack:
+# Tech Stack:
 
+# Installation:
 
-Getting Started:
+First, install `uv` package manager.
+Then in the project root, create a virtual environment and install the dependencies:
+```bash
+uv sync
+```
 
-
-Project Structure:
+# Project Structure:
 README.md - general description of the project
 /src - folder for code placement
 /docs - folder for documents placement
