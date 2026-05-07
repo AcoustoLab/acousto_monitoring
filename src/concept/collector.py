@@ -20,8 +20,6 @@ class Collector(ABC):
     def __init__(self, config: CollectorConfig, setup_config: SetupConfig):
         self._config = config
         self._setup_config = setup_config
-        self._collector_service = None
-        self._storage_service = None
 
     @abstractmethod
     async def start(self):
