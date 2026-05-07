@@ -1,10 +1,10 @@
 """Toy collector implementation."""
 
-from typing import Annotated
-
 from concept.collector_service import AbstractCollectorService, CollectorServiceConfig
-from fastapi import FastAPI, Request, Depends
 from concept.device import AbstractDevice
+from typing import Annotated
+import zmq.asyncio
+from fastapi import FastAPI, Request, Depends
 import uvicorn
 from jsonargparse import auto_cli  # type: ignore
 
@@ -15,15 +15,21 @@ class ToyCollectorServiceConfig(CollectorServiceConfig):
     port: int
 
 
-class ToyCollectorService(AbstractCollectorService):
+class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
     """Toy collector implementation."""
 
+    def __init__(self, config: ToyCollectorServiceConfig, devices: list[AbstractDevice]):
+        """Initialize the toy collector service."""
+        super().__init__(config=config, devices=devices)
+        self._zmq_ctx = zmq.asyncio.Context()
+        self._socket = self._zmq_ctx.socket(zmq.PUB)
+        port = self._config.port
+        self._socket.bind(f"tcp://*:{port}")
+
     async def start(self):
-        """Start the collector."""
         print("Collector started")
 
     async def stop(self):
-        """Stop the collector."""
         print("Collector stopped")
 
     async def status(self) -> dict[str, str]:

@@ -1,26 +1,34 @@
 """Collector service abstractions."""
 
 from abc import ABC, abstractmethod
-
-import zmq.asyncio
-
 from pydantic import BaseModel
-
 from concept.device import AbstractDevice
+from collections.abc import Iterable
+from typing import TypeVar
 
 
 class CollectorServiceConfig(BaseModel):
     """Collector service configuration."""
 
 
-class AbstractCollectorService(ABC):
+ConfigType = TypeVar("ConfigType", bound=CollectorServiceConfig)
+
+
+class AbstractCollectorService[ConfigType](ABC):
     """Abstract collector service class."""
 
-    def __init__(self, config: CollectorServiceConfig, devices: list[AbstractDevice]):
+    def __init__(self, config: ConfigType, devices: Iterable[AbstractDevice]):
+        """Initialize the collector service.
+
+        Parameters
+        ----------
+        config : CollectorServiceConfig
+            Collector service configuration.
+        devices : Iterable[AbstractDevice]
+            Devices to collect data from.
+        """
         self._config = config
-        self._devices = devices
-        self._zmq_ctx = zmq.asyncio.Context()
-        self._push_socket = None
+        self._devices = tuple(devices)
 
     @abstractmethod
     async def start(self):
