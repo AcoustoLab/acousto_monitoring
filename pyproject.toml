@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
+    "fastapi[standard]>=0.136.1",
+    "jsonargparse>=4.48.0",
     "numpy>=2.4.4",
     "pydantic>=2.13.4",
     "pyzmq>=27.1.0",

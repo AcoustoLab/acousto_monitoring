@@ -1,0 +1,4 @@
+
+port: 8000
+devices:
+  - class_path: concept.device.AbstractDevice
