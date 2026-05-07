@@ -1,4 +1,9 @@
-
-port: 8000
+collector_config:
+  port: 8000
 devices:
-  - class_path: concept.device.AbstractDevice
+  - class_path: toy_device.ToyAcousticDevice
+    init_args:
+      config:
+        device_id: "toy_acoustic_device"
+        sample_rate: 44100
+        duration: 1

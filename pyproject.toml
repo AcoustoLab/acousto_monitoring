@@ -37,7 +37,7 @@ ignore = ["D401", "D102"]
 convention = "numpy"
 
 [tool.pyright]
-include = ["src"]
+include = ["src", "toy"]
 typeCheckingMode = "strict"
 
 [tool.pytest]

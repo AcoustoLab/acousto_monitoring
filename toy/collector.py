@@ -1,22 +1,20 @@
 """Toy collector implementation."""
 
-from concept.collector import Collector
-from concept.collector import CollectorConfig, SetupConfig
+from concept.collector_service import AbstractCollectorService, CollectorServiceConfig
 from fastapi import FastAPI, Request
-import uvicorn
 from concept.device import AbstractDevice
-from collections.abc import Iterable
-from jsonargparse import auto_cli
+import uvicorn
+from jsonargparse import auto_cli  # type: ignore
 
 
-class ToyCollector(Collector):
+class ToyCollectorServiceConfig(CollectorServiceConfig):
+    """Toy collector configuration."""
+
+    port: int
+
+
+class ToyCollectorService(AbstractCollectorService):
     """Toy collector implementation."""
-
-    def __init__(
-        self, config: CollectorConfig, setup_config: SetupConfig, devices: Iterable[AbstractDevice]
-    ):
-        super().__init__(config, setup_config)
-        self.devices = devices
 
     async def start(self):
         """Start the collector."""
@@ -35,7 +33,7 @@ app = FastAPI()
 
 
 @app.get("/status")
-async def get_status(request: Request):
+async def status(request: Request):
     """Get collector status."""
     return await request.app.state.collector.status()
 
@@ -54,11 +52,9 @@ async def stop_collector(request: Request):
     return {"message": "Collector stopped"}
 
 
-def main(devices: Iterable[AbstractDevice]):
+def main(collector_config: ToyCollectorServiceConfig, devices: list[AbstractDevice]):
     """Start the collector service."""
-    collector_config = CollectorConfig()
-    setup_config = SetupConfig()
-    collector = ToyCollector(collector_config, setup_config, devices)
+    collector = ToyCollectorService(config=collector_config, devices=devices)
 
     app.state.collector = collector
     uvicorn.run(app)
