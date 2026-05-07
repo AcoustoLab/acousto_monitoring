@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from pydantic import BaseModel
+import numpy as np
 
 
 class DeviceConfig(BaseModel):
@@ -17,9 +18,10 @@ class AbstractDevice(ABC):
         self._config = config
 
     @abstractmethod
-    def record(self):
+    async def record(self) -> np.ndarray:
         """Record data."""
 
+    @property
     @abstractmethod
     async def status(self) -> dict[str, Any]:
         """Get device status."""
