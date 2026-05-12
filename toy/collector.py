@@ -2,7 +2,7 @@
 
 from concept.collector_service import AbstractCollectorService, CollectorServiceConfig
 from concept.device import AbstractDevice, DeviceData
-from typing import Annotated
+from typing import Annotated, Any
 from collections.abc import Mapping, Callable, Awaitable
 import zmq.asyncio
 import asyncio
@@ -13,7 +13,8 @@ import uvicorn
 from jsonargparse import auto_cli  # type: ignore
 import inspect
 import logging
-
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 logger = logging.getLogger(__file__)
 
@@ -67,7 +68,8 @@ async def device_poller_async(
         try:
             data = await collect_fn()
             _put_nowait_with_drop(device_queue, device_name, data)
-
+        except asyncio.CancelledError:
+            break
         except Exception:
             logger.error(f"Error polling device {device_name}", exc_info=True)
 
@@ -78,11 +80,13 @@ async def device_listener_asyncio(
     zmq_socket: zmq.asyncio.Socket,
 ) -> None:
     """Listen for device data and send it to zmq."""
-    try:
-        data = await device_queue.get()
-        await zmq_socket.send_json({"device": device_name, "data": data})
-    except Exception:
-        logger.error(f"Error sending data for device {device_name}", exc_info=True)
+    while True:
+        try:
+            data = await device_queue.get()
+            print("Got data from device", device_name)
+            await zmq_socket.send_json({"device": device_name, "data": data.model_dump()})  # type: ignore
+        except Exception:
+            logger.error(f"Error sending data for device {device_name}", exc_info=True)
 
 
 class ToyCollectorServiceConfig(CollectorServiceConfig):
@@ -98,7 +102,7 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
     def __init__(
         self,
         config: ToyCollectorServiceConfig,
-        devices: Mapping[str, AbstractDevice],
+        devices: Mapping[str, AbstractDevice[Any, Any]],
     ):
         """Initialize the toy collector service."""
         super().__init__(config=config, devices=devices)
@@ -111,11 +115,13 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
         self.stop_event = threading.Event()
         self.stop_event.set()
 
+        self.state_lock = asyncio.Lock()
+
         self.device_queues = {
             device_name: asyncio.Queue[DeviceData]() for device_name in self._devices
         }
         self.publishing_tasks: dict[str, asyncio.Task[None]] = {}
-        self.device_pooling_tasks: list[asyncio.Task[None]] = []
+        self.device_pooling_tasks: set[asyncio.Task[None]] = set()
 
     async def check_publishing_tasks(self):
         # Check if publishing tasks are running, if not start them
@@ -134,46 +140,56 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
             self.publishing_tasks[device_name] = task
 
     async def start(self):
-        if not self.stop_event.is_set():
-            return
+        async with self.state_lock:
+            if not self.stop_event.is_set():
+                return
 
-        await self.check_publishing_tasks()
+            await self.check_publishing_tasks()
 
-        self.stop_event.clear()
-        # For each device create a thread and start polling
-        # For each device create a task that listens queue and sends data to zmq
-        loop = asyncio.get_running_loop()
-        for device_name, device in self._devices.items():
-            if not inspect.iscoroutinefunction(device.record):
-                task = asyncio.create_task(
-                    asyncio.to_thread(
-                        device_poller_sync,
-                        device_name,
-                        device.record,
-                        self.stop_event,
-                        self.device_queues[device_name],
-                        loop,
+            # For each device create a thread and start polling
+            # For each device create a task that listens queue and sends data to zmq
+            loop = asyncio.get_running_loop()
+            for device_name, device in self._devices.items():
+                if not inspect.iscoroutinefunction(device.record):
+                    task = asyncio.create_task(
+                        asyncio.to_thread(
+                            device_poller_sync,
+                            device_name,
+                            device.record,
+                            self.stop_event,
+                            self.device_queues[device_name],
+                            loop,
+                        )
                     )
-                )
-            else:
-                task = asyncio.create_task(
-                    device_poller_async(
-                        device_name,
-                        device.record,
-                        self.stop_event,
-                        self.device_queues[device_name],
+                else:
+                    task = asyncio.create_task(
+                        device_poller_async(
+                            device_name,
+                            device.record,
+                            self.stop_event,
+                            self.device_queues[device_name],
+                        )
                     )
-                )
-            self.device_pooling_tasks.append(task)
-        print("Collector started")
+                self.device_pooling_tasks.add(task)
+
+            self.stop_event.clear()
+            logger.info("Collector started")
 
     async def stop(self):
-        self.stop_event.set()
-        print("Collector stopped")
+        async with self.state_lock:
+            self.stop_event.set()
+
+            for task in self.device_pooling_tasks:
+                task.cancel()
+
+            await asyncio.gather(*self.device_pooling_tasks, return_exceptions=True)
+            self.device_pooling_tasks.clear()
+
+            logger.info("Collector stopped")
 
     async def status(self) -> dict[str, str]:
         """Get collector status."""
-        return {"status": "running"}
+        return {"status": "stopped" if self.stop_event.is_set() else "running"}
 
 
 ##############################################################################
@@ -217,11 +233,11 @@ async def stop_collector(collector: CollectorDependency):
 
 def main(
     service_config: ToyCollectorServiceConfig,
-    devices: Mapping[str, AbstractDevice],
+    devices: Mapping[str, AbstractDevice],  # type: ignore
 ):
     """Start the collector service."""
     # Create the service instance
-    collector = ToyCollectorService(config=service_config, devices=devices)
+    collector = ToyCollectorService(config=service_config, devices=devices)  # type: ignore
 
     # Create the FastAPI app and include the api router
     app = FastAPI()
@@ -229,8 +245,28 @@ def main(
     app.get("/")(lambda: "alive")
     app.state.collector = collector
 
+    # setup logging
+    log_file = Path().cwd() / "logs" / "collector.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter("%(asctime)s (%(name)s) [%(levelname)s] %(message)s")
+
+    handler = RotatingFileHandler(log_file, maxBytes=1 * 1024 * 1024, backupCount=5)
+    handler.setFormatter(formatter)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO)
+
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.addHandler(handler)
+    uvicorn_logger.addHandler(console_handler)
+    uvicorn_logger.setLevel(logging.INFO)
+
     # Start the FastAPI app
-    uvicorn.run(app, port=service_config.api_port)
+    uvicorn.run(app, port=service_config.api_port, log_config=None)
 
 
 if __name__ == "__main__":

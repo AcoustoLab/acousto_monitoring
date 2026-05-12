@@ -14,17 +14,17 @@ class DeviceData(BaseModel):
     """Device data."""
 
 
-class AbstractDevice(ABC):
+class AbstractDevice[DeviceConfigT: DeviceConfig, DeviceDataT: DeviceData](ABC):
     """Abstract device class."""
 
-    def __init__(self, config: DeviceConfig):
+    def __init__(self, config: DeviceConfigT):
         self._config = config
 
     @abstractmethod
-    async def record(self) -> DeviceData:
+    def record(self) -> DeviceDataT:
         """Record data."""
 
     @property
     @abstractmethod
-    async def status(self) -> dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Get device status."""
