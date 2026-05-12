@@ -11,6 +11,7 @@ from fastapi import Request, Depends, FastAPI
 from fastapi.routing import APIRouter
 import uvicorn
 from jsonargparse import auto_cli  # type: ignore
+import inspect
 import logging
 
 
@@ -18,9 +19,11 @@ logger = logging.getLogger(__file__)
 
 
 def _put_nowait_with_drop(
-    device_queue: asyncio.Queue[DeviceData], device_name: str, data: DeviceData
+    device_queue: asyncio.Queue[DeviceData],
+    device_name: str,
+    data: DeviceData,
 ) -> None:
-
+    """Put data in the queue, dropping old data if the queue is full."""
     try:
         device_queue.put_nowait(data)
     except asyncio.QueueFull:
@@ -35,7 +38,7 @@ def _put_nowait_with_drop(
                 break
 
 
-def device_poller_threading(
+def device_poller_sync(
     device_name: str,
     collect_fn: Callable[[], DeviceData],
     stop_event: threading.Event,
@@ -115,10 +118,11 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
         self.device_pooling_tasks: list[asyncio.Task[None]] = []
 
     async def check_publishing_tasks(self):
-
+        # Check if publishing tasks are running, if not start them
         for device_name, device_queue in self.device_queues.items():
             if device_name in self.publishing_tasks:
                 continue
+
             task = asyncio.create_task(
                 device_listener_asyncio(
                     device_name=device_name,
@@ -126,6 +130,7 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
                     zmq_socket=self._socket,
                 )
             )
+
             self.publishing_tasks[device_name] = task
 
     async def start(self):
@@ -139,10 +144,10 @@ class ToyCollectorService(AbstractCollectorService[ToyCollectorServiceConfig]):
         # For each device create a task that listens queue and sends data to zmq
         loop = asyncio.get_running_loop()
         for device_name, device in self._devices.items():
-            if False:
+            if not inspect.iscoroutinefunction(device.record):
                 task = asyncio.create_task(
                     asyncio.to_thread(
-                        device_poller_threading,
+                        device_poller_sync,
                         device_name,
                         device.record,
                         self.stop_event,
