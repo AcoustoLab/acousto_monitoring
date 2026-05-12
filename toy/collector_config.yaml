@@ -1,7 +1,10 @@
-collector_config:
-  port: 8000
+service_config:
+  api_port: 8101
+  zmq_addr: tcp://*:9101
+
 devices:
-  - class_path: toy_device.ToyAcousticDevice
+  device0:
+    class_path: toy_device.ToyAcousticDevice
     init_args:
       config:
         device_id: "toy_acoustic_device"

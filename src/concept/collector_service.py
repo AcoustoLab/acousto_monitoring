@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from concept.device import AbstractDevice
-from collections.abc import Iterable
+from collections.abc import Mapping
 from typing import TypeVar
 
 
@@ -17,18 +17,18 @@ ConfigType = TypeVar("ConfigType", bound=CollectorServiceConfig)
 class AbstractCollectorService[ConfigType](ABC):
     """Abstract collector service class."""
 
-    def __init__(self, config: ConfigType, devices: Iterable[AbstractDevice]):
+    def __init__(self, config: ConfigType, devices: Mapping[str, AbstractDevice]):
         """Initialize the collector service.
 
         Parameters
         ----------
         config : CollectorServiceConfig
             Collector service configuration.
-        devices : Iterable[AbstractDevice]
+        devices : Mapping[str, AbstractDevice]
             Devices to collect data from.
         """
         self._config = config
-        self._devices = tuple(devices)
+        self._devices = dict(devices)
 
     @abstractmethod
     async def start(self):

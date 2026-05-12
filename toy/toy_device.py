@@ -1,4 +1,4 @@
-from concept.device import AbstractDevice, DeviceConfig
+from concept.device import AbstractDevice, DeviceConfig, DeviceData
 from typing import Any
 
 import asyncio
@@ -13,19 +13,24 @@ class ToyAcousticDeviceConfig(DeviceConfig):
     duration: int
 
 
+class ToyAcousticDeviceData(DeviceData):
+    """Toy acoustic device data."""
+
+    data: list[float]
+
+
 class ToyAcousticDevice(AbstractDevice):
     """Toy acoustic device class."""
 
     def __init__(self, config: ToyAcousticDeviceConfig):
         super().__init__(config)
 
-    async def record(self) -> np.ndarray:
+    async def record(self) -> ToyAcousticDeviceData:
         """Record data."""
-        while True:
-            length = self._config.sample_rate * self._config.duration
-            data = np.random.rand(length)
-            await asyncio.sleep(self._config.duration)
-            yield data
+        length = self._config.sample_rate * self._config.duration
+        data = np.random.rand(length)
+        await asyncio.sleep(self._config.duration)
+        return ToyAcousticDeviceData(data=list(data))
 
     @property
     async def status(self) -> dict[str, Any]:
