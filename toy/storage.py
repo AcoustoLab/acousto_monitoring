@@ -15,6 +15,29 @@ from jsonargparse import auto_cli  # type: ignore
 from collector import ToyCollectorServiceData
 import uvicorn
 
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+
+logger = logging.getLogger(__file__)
+
+
+def setup_logging():
+    """Set up logging to file and console with rotation."""
+    log_file = Path("logs/storage.log")
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s (%(name)s) [%(levelname)s] %(message)s",
+        handlers=[
+            RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=5),
+            logging.StreamHandler(),
+        ],
+        force=True,
+    )
+
 
 class ToyStorageConfig(StorageServiceConfig):
     """Toy storage configuration."""
@@ -74,6 +97,8 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
             )
             self.db.commit()
 
+            print(f"Stored data from device {device}")
+
         await asyncio.to_thread(_write)
 
     async def sync(self, data: dict[str, Any]):
@@ -120,6 +145,7 @@ async def status(storage: StorageDependency):
 async def start_storage(storage: StorageDependency):
     """Start storage collection."""
     await storage.start()
+    logger.info("Storage collection started")
     return {"message": "Storage started"}
 
 
@@ -127,6 +153,7 @@ async def start_storage(storage: StorageDependency):
 async def stop_storage(storage: StorageDependency):
     """Stop storage collection."""
     await storage.stop()
+    logger.info("Storage collection stopped")
     return {"message": "Storage stopped"}
 
 
@@ -140,12 +167,15 @@ def main(
     storage: AbstractStorageService,  # type: ignore
 ):
     """Main function to run the toy storage service."""
+    setup_logging()
+
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.get("/")(lambda: "alive")
     app.state.storage = storage
 
-    uvicorn.run(app, port=api_port)
+    logger.info("Starting storage API on port %s", api_port)
+    uvicorn.run(app, port=api_port, log_config=None)
 
 
 if __name__ == "__main__":
