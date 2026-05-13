@@ -1,8 +1,10 @@
-storage_config:
-  storage_id: "toy_storage_service"
-  storage_type: "local"
-  zmq_sub_addrs:
-    - "tcp://localhost:9101"
-  db_path: "local_db.json"
-  
-  
+api_port: 8102
+storage:
+  class_path: ToyStorageService
+  init_args:
+    config:
+      storage_id: "toy_storage_service"
+      storage_type: "local"
+      zmq_sub_addrs:
+        - "tcp://localhost:9101"
+      db_path: "local_db.sqlite"

@@ -1,12 +1,20 @@
 """Toy storage service implementation."""
 
-from typing import Any
+from typing import Annotated, Any
 
 import asyncio
 import os
 import sqlite3
+import json
+import time
 
 from concept.storage_service import AbstractStorageService, StorageServiceConfig
+from fastapi import Depends, FastAPI, Request
+from fastapi.routing import APIRouter
+from jsonargparse import auto_cli  # type: ignore
+from collector import ToyCollectorServiceData
+import uvicorn
+
 
 class ToyStorageConfig(StorageServiceConfig):
     """Toy storage configuration."""
@@ -44,16 +52,25 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
         self.db.commit()
 
     async def write_db(self, data: dict[str, Any]):
-        """Write data to the SQLite database."""
+        """Write a message from the collector to the SQLite database.
+
+        Expected message shape: {"device": <uid>, "data": <model_dump dict>}.
+        """
         def _write():
             assert self.db is not None
+            device = data.get("device")
+            payload = data.get("data")
+            ts = time.time()
+            payload = ToyCollectorServiceData.model_validate(payload).model_dump()
+            payload_json = json.dumps(payload, separators=(",", ":"))
+
             cursor = self.db.cursor()
             cursor.execute(
                 """
                 INSERT INTO device_data (device_name, timestamp, data)
                 VALUES (?, ?, ?)
                 """,
-                (data["device_name"], data["timestamp"], str(data["data"])),
+                (device, ts, payload_json),
             )
             self.db.commit()
 
@@ -79,25 +96,57 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
         return await asyncio.to_thread(_status)
 
 
+##############################################################################
+#    FastAPI app
+##############################################################################
+
+
+def get_storage(request: Request) -> ToyStorageService:
+    """Get the storage service instance."""
+    return request.app.state.storage
+
+
+StorageDependency = Annotated[ToyStorageService, Depends(get_storage)]
+router = APIRouter()
+
+
+@router.get("/status")
+async def status(storage: StorageDependency):
+    """Get storage status."""
+    return await storage.status()
+
+
+@router.post("/start")
+async def start_storage(storage: StorageDependency):
+    """Start storage collection."""
+    await storage.start()
+    return {"message": "Storage started"}
+
+
+@router.post("/stop")
+async def stop_storage(storage: StorageDependency):
+    """Stop storage collection."""
+    await storage.stop()
+    return {"message": "Storage stopped"}
+
+
+##############################################################################
+#    Main function
+##############################################################################
+
+
 def main(
-    config: ToyStorageConfig,
+    api_port: int,
+    storage: AbstractStorageService,  # type: ignore
 ):
     """Main function to run the toy storage service."""
-    storage_service = ToyStorageService(config)
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.get("/")(lambda: "alive")
+    app.state.storage = storage
 
-    async def _run():
-        status = await storage_service.status()
-        print(status)
-        await storage_service.start()
-        await storage_service.stop()
-
-    asyncio.run(_run())
+    uvicorn.run(app, port=api_port)
 
 
 if __name__ == "__main__":
-    import yaml
-    with open("toy/storage_config.yaml") as f:
-        config_dict = yaml.safe_load(f)
-
-    config = ToyStorageConfig(**config_dict["storage_config"])
-    main(config)
+    auto_cli(main)

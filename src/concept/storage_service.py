@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 import json
-from typing import Any, TypeVar, Generic
+from typing import Any
 import zmq.asyncio
 import asyncio
 
@@ -91,7 +91,7 @@ class AbstractStorageService[StorageServiceConfigT: StorageServiceConfig](ABC):
     def _add_zmq_subcription(self, zmq_addr: str):
         """Add a zmq subscriber (synchronous)."""
         sub_socket = self._zmq_ctx.socket(zmq.SUB)
-        sub_socket.bind(zmq_addr)
+        sub_socket.connect(zmq_addr)
         sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self._sub_sockets.append(sub_socket)
 
