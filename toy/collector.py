@@ -138,13 +138,7 @@ class ToyCollectorService(
 
         self.device_queue = asyncio.Queue[ToyCollectorServiceData](20)
         # start infinite publishing loop
-        self.publishing_task = asyncio.create_task(
-            device_listener_asyncio(
-                uid=self._uid,
-                queue=self.device_queue,
-                zmq_socket=self._socket,
-            )
-        )
+        self.publishing_task: None | asyncio.Task[None] = None
         self.device_pooling_task: None | asyncio.Task[None] = None
 
     def record(self) -> ToyCollectorServiceData:
@@ -154,6 +148,14 @@ class ToyCollectorService(
         return ToyCollectorServiceData(data=data)
 
     async def start(self):
+        if self.publishing_task is None or self.publishing_task.done():
+            self.publishing_task = asyncio.create_task(
+                device_listener_asyncio(
+                    uid=self._uid,
+                    queue=self.device_queue,
+                    zmq_socket=self._socket,
+                )
+            )
         async with self.state_lock:
             if not self.stop_event.is_set():
                 # Do not start, if running
