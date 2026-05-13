@@ -1,12 +1,9 @@
-service_config:
-  api_port: 8101
-  zmq_addr: tcp://*:9101
-
-devices:
-  device0:
-    class_path: toy_device.ToyAcousticDevice
-    init_args:
-      config:
-        device_id: "toy_acoustic_device"
-        sample_rate: 44100
-        duration: 1
+api_port: 8101
+collector:
+  class_path: ToyCollectorService
+  init_args:
+    uid: "toy_acoustic_device"
+    config:
+      zmq_addr: tcp://*:9101
+      sample_rate: 44100
+      duration: 1
