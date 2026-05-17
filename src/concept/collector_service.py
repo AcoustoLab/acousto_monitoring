@@ -14,7 +14,7 @@ from typing import Literal, Annotated
 
 from fastapi import Request, Depends, FastAPI
 from fastapi.routing import APIRouter
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 import logging
 
@@ -119,6 +119,7 @@ async def zmq_publisher[T: CollectorServiceData](
             break
         except Exception:
             logger.error("Error sending data for device", exc_info=True)
+            await asyncio.sleep(0)  # avoid busy loop if zmq is not available
 
     logger.debug("ZMQ publisher loop stopped")
 
@@ -165,13 +166,8 @@ class AbstractCollectorService[
         self.__config = config
 
         # == ZMQ setup ==
-        self._zmq_ctx = zmq.asyncio.Context()
-        self._socket = self._zmq_ctx.socket(zmq.PUB)
-
-        # == ZMQ socket configuration ==
-        # Newer message will be dropped when the queue is full, instead of blocking the publisher
-        self._socket.setsockopt(zmq.SNDHWM, self.config.zmq_hwm)
-        self._socket.bind(self.config.zmq_addr)
+        self._zmq_ctx: zmq.asyncio.Context | None = None
+        self._socket: zmq.asyncio.Socket | None = None
 
         # == Threading and state management ==
         self.stop_event = threading.Event()
@@ -189,6 +185,12 @@ class AbstractCollectorService[
 
         Start a publishing task that listens for device data and sends it to zmq.
         """
+        self._zmq_ctx = zmq.asyncio.Context()
+        self._socket = self._zmq_ctx.socket(zmq.PUB)
+        # Newer message will be dropped when the queue is full, instead of blocking the publisher
+        self._socket.setsockopt(zmq.SNDHWM, self.config.zmq_hwm)
+        self._socket.bind(self.config.zmq_addr)
+
         self.publishing_task = asyncio.create_task(
             zmq_publisher(
                 uid=self.uid,
@@ -206,6 +208,17 @@ class AbstractCollectorService[
         await self.stop()
         if self.publishing_task is not None:
             self.publishing_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.publishing_task
+            self.publishing_task = None
+
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
+
+        if self._zmq_ctx is not None:
+            self._zmq_ctx.term()
+            self._zmq_ctx = None
 
     @property
     def uid(self) -> str:
