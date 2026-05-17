@@ -1,3 +1,5 @@
+"""Pydantic related utilities for serializing and deserializing complex data types."""
+
 from typing import Literal, Any
 from pydantic import GetCoreSchemaHandler, ValidatorFunctionWrapHandler
 from pydantic import BaseModel
@@ -24,7 +26,7 @@ class SerializedNDArray:
     """
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler):
+    def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler):  # noqa: D105
         return core_schema.no_info_wrap_validator_function(
             function=cls.validate,
             schema=core_schema.is_instance_schema(np.ndarray),
