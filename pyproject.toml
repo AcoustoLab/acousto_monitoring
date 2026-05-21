@@ -4,4 +4,44 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+
+dependencies = [
+    "numpy>=2.4.4",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "pyright>=1.1.409",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.12",
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B", "SIM", "W", "D"]
+# select= ["ALL"]  # Uncomment this line to enable all checks
+# preview = true  # Uncomment this line to enable preview checks
+ignore = ["D401", "D102"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "strict"
+
+[tool.pytest]
+addopts = ["--cov=src", "--cov-report=html", "--cov-report=term:skip-covered", "--cov-fail-under=100"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/concept"]
