@@ -155,7 +155,7 @@ async def test_device_error(
             config=CollectorServiceConfig(
                 zmq_addr="tcp://*:35557",
                 device_error_policy=ErrorHandlingPolicy.LOG,
-                device_error_retry_delay=0.1,
+                device_error_retry_delay_sec=0.1,
             ),
         )
 

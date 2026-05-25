@@ -135,7 +135,7 @@ class CollectorServiceConfig(BaseModel):
     zmq_addr: str
     zmq_hwm: int = 20
     device_error_policy: ErrorHandlingPolicy = ErrorHandlingPolicy.STOP
-    device_error_retry_delay: float = 1.0
+    device_error_retry_delay_sec: float = 1.0
 
 
 class CollectorServiceData(BaseModel):
