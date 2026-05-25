@@ -10,7 +10,7 @@ import asyncio
 import time
 
 from collections.abc import Callable, Awaitable
-from typing import Literal, Annotated
+from typing import Annotated
 
 from fastapi import Request, Depends, FastAPI
 from fastapi.routing import APIRouter
@@ -129,6 +129,16 @@ async def zmq_publisher[T: CollectorServiceData](
 ##############################################################################
 
 
+class CollectorServiceState(StrEnum):
+    """States of the collector service."""
+
+    RUNNING = "running"
+    STOPPED = "stopped"
+    STARTING = "starting"
+    STOPPING = "stopping"
+    ERROR = "error"
+
+
 class CollectorServiceConfig(BaseModel):
     """Collector service configuration."""
 
@@ -174,7 +184,7 @@ class AbstractCollectorService[
         self.stop_event.set()
 
         self.state_lock = asyncio.Lock()  # locks the state of the collector (running/stopped)
-        self.state: Literal["running", "stopped", "starting", "stopping", "error"] = "stopped"
+        self.state: CollectorServiceState = CollectorServiceState.STOPPED
 
         self.device_queue = asyncio.Queue[DataType]()
         self.publishing_task: None | asyncio.Task[None] = None
@@ -231,7 +241,7 @@ class AbstractCollectorService[
         return self.__config
 
     async def status(self) -> dict[str, str]:
-        """Get collector status."""
+        """Get collector status. User can add more information here if needed."""
         return {"state": self.state}
 
     @abstractmethod
@@ -244,15 +254,15 @@ class AbstractCollectorService[
             result = task.result()
             if result is False:
                 # the polling stopped due to an error, set state to error
-                self.state = "error"
+                self.state = CollectorServiceState.ERROR
                 logger.info("Collector stopped due to device polling error")
 
         async with self.state_lock:
-            if self.state == "running":
+            if self.state == CollectorServiceState.RUNNING:
                 return
 
             try:
-                self.state = "starting"
+                self.state = CollectorServiceState.STARTING
                 self.stop_event.clear()
 
                 self.device_pooling_task = self._start_device_pooling_task()
@@ -260,16 +270,16 @@ class AbstractCollectorService[
 
             except Exception as e:
                 logger.error("Error starting collector", exc_info=True)
-                self.state = "stopped"
+                self.state = CollectorServiceState.STOPPED
                 raise e
 
-            self.state = "running"
+            self.state = CollectorServiceState.RUNNING
             logger.info("Collector started")
 
     async def stop(self):
         """Stop the device polling."""
         async with self.state_lock:
-            self.state = "stopping"
+            self.state = CollectorServiceState.STOPPING
             self.stop_event.set()
 
             # await pulling task to finish
@@ -277,7 +287,7 @@ class AbstractCollectorService[
                 await self.device_pooling_task
 
             self.device_pooling_task = None
-            self.state = "stopped"
+            self.state = CollectorServiceState.STOPPED
             logger.info("Collector stopped")
 
 
@@ -300,7 +310,7 @@ class CollectorService[
                 queue=self.device_queue,
                 loop=loop,
                 error_policy=self.config.device_error_policy,
-                error_retry_delay=self.config.device_error_retry_delay,
+                error_retry_delay=self.config.device_error_retry_delay_sec,
             )
         )
 
@@ -321,7 +331,7 @@ class AsyncCollectorService[
                 stop_event=self.stop_event,
                 queue=self.device_queue,
                 error_policy=self.config.device_error_policy,
-                error_retry_delay=self.config.device_error_retry_delay,
+                error_retry_delay=self.config.device_error_retry_delay_sec,
             )
         )
 
