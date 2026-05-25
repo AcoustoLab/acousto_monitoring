@@ -294,7 +294,7 @@ class AbstractCollectorService[
 class CollectorService[
     ConfigType: CollectorServiceConfig,
     DataType: CollectorServiceData,
-](AbstractCollectorService[ConfigType, DataType], ABC):
+](AbstractCollectorService[ConfigType, DataType]):
     """Abstract collector service class for blocking device calls."""
 
     @abstractmethod
@@ -318,7 +318,7 @@ class CollectorService[
 class AsyncCollectorService[
     ConfigType: CollectorServiceConfig,
     DataType: CollectorServiceData,
-](AbstractCollectorService[ConfigType, DataType], ABC):
+](AbstractCollectorService[ConfigType, DataType]):
     """Abstract collector service class for async device calls."""
 
     @abstractmethod
