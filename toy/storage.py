@@ -8,11 +8,11 @@ import sqlite3
 import json
 import time
 
-from concept.storage_service import AbstractStorageService, StorageServiceConfig
+from concept.storage_service import AbstractStorageService, CollectorMessage, StorageServiceConfig
 from fastapi import Depends, FastAPI, Request
 from fastapi.routing import APIRouter
 from jsonargparse import auto_cli  # type: ignore
-from collector import ToyCollectorServiceData
+from toy.collector import ToyCollectorServiceData
 import uvicorn
 
 import logging
@@ -48,7 +48,7 @@ class ToyStorageConfig(StorageServiceConfig):
     zmq_sub_addrs: list[str]
 
 
-class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
+class ToyStorageService(AbstractStorageService[ToyStorageConfig, ToyCollectorServiceData]):
     """Toy storage service implementation with simple SQLite database."""
 
     def __init__(self, config: ToyStorageConfig):
@@ -74,7 +74,7 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
         )
         self.db.commit()
 
-    async def write_db(self, data: dict[str, Any]):
+    async def write_db(self, data: CollectorMessage[ToyCollectorServiceData]) -> None:
         """Write a message from the collector to the SQLite database.
 
         Expected message shape: {"device": <uid>, "data": <model_dump dict>}.
@@ -101,7 +101,7 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig]):
 
         await asyncio.to_thread(_write)
 
-    async def sync(self, data: dict[str, Any]):
+    async def sync(self, data: ToyCollectorServiceData) -> None:
         """Sync data."""
         pass
 

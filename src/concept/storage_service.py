@@ -3,24 +3,33 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 import json
-from typing import Any
+from typing import Any, TypedDict
 import zmq.asyncio
 import asyncio
 
 from pydantic import BaseModel
+from concept.collector_service import CollectorServiceData
 import logging
+
+
+class CollectorMessage[DataT: CollectorServiceData](TypedDict):
+    """Message format for collector data sent to storage service."""
+
+    uid: str
+    data: DataT
 
 
 logger = logging.getLogger(__file__)
 
 
-def _put_nowait_with_drop(
-    queue: asyncio.Queue[dict[str, Any]],
-    data: dict[str, Any],
+def _put_nowait_with_drop[DataT: CollectorServiceData](
+    queue: asyncio.Queue[CollectorMessage[DataT]],
+    data: CollectorMessage[DataT],
 ) -> None:
     """Put data in the queue, dropping old data if the queue is full."""
     try:
         queue.put_nowait(data)
+        logger.info("Put data in queue")
     except asyncio.QueueFull:
         logger.warning(
             "Queue full, dropping data",
@@ -28,27 +37,30 @@ def _put_nowait_with_drop(
         while True:
             try:
                 queue.get_nowait()
+                logger.info("Dropped data from queue")
             except asyncio.QueueEmpty:
                 queue.put_nowait(data)
+                logger.info("Put data in queue")
                 break
 
 
-async def listen_to_zmq_queue(
+async def listen_to_zmq_queue[DataT: CollectorServiceData](
     socket: zmq.asyncio.Socket,
-    queue: asyncio.Queue[dict[str, Any]],
+    queue: asyncio.Queue[CollectorMessage[DataT]],
 ) -> None:
     """Listen to zmq for incoming data and put it in the queue."""
     while True:
         try:
             data = json.loads((await socket.recv()).decode("utf-8"))
+            logger.info("Received data from zmq")
             _put_nowait_with_drop(queue, data)
         except Exception:
             logger.error("Error receiving data from zmq")
 
 
-async def write_db_from_queue(
-    queue: asyncio.Queue[dict[str, Any]],
-    write_db_fn: Callable[[dict[str, Any]], Awaitable[None]]
+async def write_db_from_queue[DataT: CollectorServiceData](
+    queue: asyncio.Queue[CollectorMessage[DataT]],
+    write_db_fn: Callable[[CollectorMessage[DataT]], Awaitable[None]]
 ) -> None:
     """Write data from queue to database."""
     while True:
@@ -70,7 +82,10 @@ class StorageServiceConfig(BaseModel):
     zmq_sub_addrs: list[str]
 
 
-class AbstractStorageService[StorageServiceConfigT: StorageServiceConfig](ABC):
+class AbstractStorageService[
+    StorageServiceConfigT: StorageServiceConfig,
+    DataT: CollectorServiceData,
+](ABC):
     """Abstract storage service class."""
 
     def __init__(self, config: StorageServiceConfigT):
@@ -81,7 +96,7 @@ class AbstractStorageService[StorageServiceConfigT: StorageServiceConfig](ABC):
         self._sub_sockets: list[zmq.asyncio.Socket] = []
         self._listening_tasks: list[asyncio.Task[None]] = []
         self._writing_task: asyncio.Task[None] | None = None
-        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._queue: asyncio.Queue[CollectorMessage[DataT]] = asyncio.Queue()
 
         self._connect_db()
         self._zmq_addrs = list(self._config.zmq_sub_addrs)
@@ -100,11 +115,11 @@ class AbstractStorageService[StorageServiceConfigT: StorageServiceConfig](ABC):
         """Connect to the database."""
 
     @abstractmethod
-    async def write_db(self, data: dict[str, Any]):
+    async def write_db(self, data: CollectorMessage[DataT]) -> None:
         """Write data to the database."""
 
     @abstractmethod
-    async def sync(self, data: dict[str, Any]):
+    async def sync(self, data: DataT) -> None:
         """Sync data."""
 
     async def start(self):
