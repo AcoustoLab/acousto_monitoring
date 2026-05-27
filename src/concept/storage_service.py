@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 import json
 from typing import Any, TypedDict
+import contextlib
 import zmq.asyncio
 import asyncio
 
@@ -26,22 +27,14 @@ def _put_nowait_with_drop[DataT: CollectorServiceData](
     queue: asyncio.Queue[CollectorMessage[DataT]],
     data: CollectorMessage[DataT],
 ) -> None:
-    """Put data in the queue, dropping old data if the queue is full."""
+    """Put data in the queue, dropping the oldest item if the queue is full."""
     try:
         queue.put_nowait(data)
-        logger.info("Put data in queue")
     except asyncio.QueueFull:
-        logger.warning(
-            "Queue full, dropping data",
-        )
-        while True:
-            try:
-                queue.get_nowait()
-                logger.info("Dropped data from queue")
-            except asyncio.QueueEmpty:
-                queue.put_nowait(data)
-                logger.info("Put data in queue")
-                break
+        logger.warning("Queue full, dropping data")
+        with contextlib.suppress(asyncio.QueueEmpty):
+            queue.get_nowait()  # drop exactly one oldest item
+        queue.put_nowait(data)
 
 
 async def listen_to_zmq_queue[DataT: CollectorServiceData](

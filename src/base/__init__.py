@@ -1,7 +1,7 @@
 """Base audio collector and storage implementations."""
 
-from base.audio_data import BaseAudioCollectorServiceData
-from base.local_storage import LocalAudioStorageConfig, LocalAudioStorageService
+from .audio_data import BaseAudioCollectorServiceData
+from .local_storage import LocalAudioStorageConfig, LocalAudioStorageService
 
 __all__ = [
     "BaseAudioCollectorServiceData",

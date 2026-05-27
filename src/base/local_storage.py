@@ -44,7 +44,7 @@ class LocalAudioStorageConfig(StorageServiceConfig):
 
     storage_id: str
     data_root: str = "data"
-    storage_type: str = "local_audio"
+    storage_type: str = "local"
 
 
 class LocalAudioStorageService(

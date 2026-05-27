@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from pydantic import Field
 
-from toy.collector import ToyCollectorServiceData
+from toy import ToyCollectorServiceData
 
 
 class BaseAudioCollectorServiceData(ToyCollectorServiceData):
