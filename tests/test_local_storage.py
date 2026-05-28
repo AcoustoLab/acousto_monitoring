@@ -10,46 +10,7 @@ from base.local_storage import LocalAudioStorageConfig, LocalAudioStorageService
 from base.audio_data import BaseAudioCollectorServiceData
 
 
-from base.local_storage import _pcm16_audio  # type: ignore
 from concept.storage_service import CollectorMessage
-
-
-def test_pcm16_float_clipped():
-    """Float audio in [-1, 1] is scaled to int16 range."""
-    audio = np.array([0.0, 1.0, -1.0], dtype=np.float32)
-    result = _pcm16_audio(audio)
-    assert result.dtype == np.dtype("<i2")
-    assert result[1] == 32767
-    assert result[2] == -32767
-
-
-def test_pcm16_int_passthrough():
-    """Integer audio is just clipped and cast, not scaled."""
-    audio = np.array([0, 100, -100], dtype=np.int32)
-    result = _pcm16_audio(audio)
-    assert result.dtype == np.dtype("<i2")
-    assert list(result) == [0, 100, -100]
-
-
-def test_pcm16_2d_stereo():
-    """2D stereo array is accepted."""
-    audio = np.zeros((1000, 2), dtype=np.float32)
-    result = _pcm16_audio(audio)
-    assert result.shape == (1000, 2)
-
-
-def test_pcm16_invalid_shape():
-    """3D array raises ValueError."""
-    audio = np.zeros((10, 2, 2), dtype=np.float32)
-    with pytest.raises(ValueError):
-        _pcm16_audio(audio)
-
-
-def test_pcm16_empty_channels():
-    """2D array with 0 channels raises ValueError."""
-    audio = np.zeros((10, 0), dtype=np.float32)
-    with pytest.raises(ValueError):
-        _pcm16_audio(audio)
 
 
 @pytest.fixture()

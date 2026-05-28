@@ -5,13 +5,13 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Any
 import json
-import wave
 
 from fastapi.params import Depends
 from fastapi import FastAPI, Request
 from fastapi.routing import APIRouter
 from jsonargparse import auto_cli  # type: ignore
 import numpy as np
+import soundfile as sf  # type: ignore[import-untyped]
 from datetime import datetime
 
 import uvicorn
@@ -78,7 +78,6 @@ class LocalAudioStorageService(
         }
 
     def _write_files(self, uid: str, item: BaseAudioCollectorServiceData) -> None:
-        audio = _pcm16_audio(item.data)
         collected_at = datetime.fromisoformat(item.collected_at)
         rel_dir = Path(f"{collected_at:%Y}", f"{collected_at:%m}", f"{collected_at:%d}")
         target_dir = self.data_root / rel_dir
@@ -89,8 +88,7 @@ class LocalAudioStorageService(
         wav_path = self.data_root / wav_rel
         json_path = self.data_root / json_rel
 
-        channels = 1 if audio.ndim == 1 else audio.shape[1]
-        _write_wav_atomic(wav_path, audio, item.sample_rate, channels)
+        _write_wav_atomic(wav_path, item.data, item.sample_rate)
         logger.info(f"Stored audio data with {uid} at {wav_path}")
 
         metadata = {
@@ -103,26 +101,15 @@ class LocalAudioStorageService(
         logger.info(f"Stored metadata for {uid} at {json_path}")
 
 
-def _pcm16_audio(audio: np.ndarray) -> np.ndarray:
-    """Convert mono or frame/channel audio to PCM int16."""
+def _write_wav_atomic(path: Path, audio: np.ndarray, sample_rate: int) -> None:
+    """Write a WAV file through a temporary path."""
     if audio.ndim not in {1, 2}:
         raise ValueError("audio_data must be 1D mono or 2D frames/channels")
     if audio.ndim == 2 and audio.shape[1] < 1:
         raise ValueError("audio_data must have at least one channel")
 
-    if np.issubdtype(audio.dtype, np.floating):
-        return (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2")
-    return np.clip(audio, -32768, 32767).astype("<i2")
-
-
-def _write_wav_atomic(path: Path, audio: np.ndarray, sample_rate: int, channels: int) -> None:
-    """Write a WAV file through a temporary path."""
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with wave.open(str(tmp_path), "wb") as wav_file:
-        wav_file.setnchannels(channels)
-        wav_file.setsampwidth(2)
-        wav_file.setframerate(sample_rate)
-        wav_file.writeframes(np.ascontiguousarray(audio).tobytes())
+    sf.write(tmp_path, audio, sample_rate, format="WAV")  # type: ignore
     tmp_path.replace(path)
 
 
