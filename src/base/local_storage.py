@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.routing import APIRouter
 from jsonargparse import auto_cli  # type: ignore
 import numpy as np
-import soundfile as sf  # type: ignore[import-untyped]
+import soundfile as sf  # type: ignore
 from datetime import datetime
 
 import uvicorn
@@ -80,25 +80,26 @@ class LocalAudioStorageService(
     def _write_files(self, uid: str, item: BaseAudioCollectorServiceData) -> None:
         collected_at = datetime.fromisoformat(item.collected_at)
         rel_dir = Path(f"{collected_at:%Y}", f"{collected_at:%m}", f"{collected_at:%d}")
-        target_dir = self.data_root / rel_dir
+        target_dir = self.data_root / rel_dir / uid
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        wav_rel = rel_dir / f"{collected_at:%H%M%S}_{uid}.wav"
-        json_rel = rel_dir / f"{collected_at:%H%M%S}_{uid}.json"
+        wav_rel = rel_dir / f"{collected_at:%H%M%S}_{item.recording_id}.wav"
+        json_rel = rel_dir / f"{collected_at:%H%M%S}_{item.recording_id}.json"
         wav_path = self.data_root / wav_rel
         json_path = self.data_root / json_rel
 
         _write_wav_atomic(wav_path, item.data, item.sample_rate)
-        logger.info(f"Stored audio data with {uid} at {wav_path}")
+        logger.info(f"Stored audio data {item.recording_id} for {uid} at {wav_path}")
 
         metadata = {
             "uid": uid,
             "collected_at": item.collected_at,
             "sample_rate": item.sample_rate,
+            "recording_id": item.recording_id,
             "metadata": item.metadata,
         }
         _write_json_atomic(json_path, metadata)
-        logger.info(f"Stored metadata for {uid} at {json_path}")
+        logger.info(f"Stored metadata {item.recording_id} for {uid} at {json_path}")
 
 
 def _write_wav_atomic(path: Path, audio: np.ndarray, sample_rate: int) -> None:

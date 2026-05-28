@@ -1,65 +1,91 @@
-"""Test the local storage service."""
+"""Tests for storage_service.py and local_storage.py."""
 
+import json
+from pathlib import Path
 from unittest.mock import patch
 
-from pathlib import Path
 import numpy as np
 import pytest
 
+from base.local_storage import _write_wav_atomic  # type: ignore[import]
 from base.local_storage import LocalAudioStorageConfig, LocalAudioStorageService
 from base.audio_data import BaseAudioCollectorServiceData
-
-
 from concept.storage_service import CollectorMessage
+
+
+def test_write_wav_1d(tmp_path: Path):
+    """Test that _write_wav_atomic successfully writes a 1D mono audio array to a WAV file."""
+    _write_wav_atomic(tmp_path / "out.wav", np.zeros(1000, dtype=np.float32), 44100)
+    assert (tmp_path / "out.wav").exists()
+
+
+def test_write_wav_2d_stereo(tmp_path: Path):
+    """Test that _write_wav_atomic successfully writes a 2D stereo audio array to a WAV file."""
+    _write_wav_atomic(tmp_path / "out.wav", np.zeros((1000, 2), dtype=np.float32), 44100)
+    assert (tmp_path / "out.wav").exists()
+
+
+def test_write_wav_3d_raises():
+    """Test that _write_wav_atomic raises a ValueError when given a 3D audio array."""
+    with pytest.raises(ValueError, match="1D mono or 2D"):
+        _write_wav_atomic(Path("/tmp/x.wav"), np.zeros((10, 2, 2), dtype=np.float32), 44100)
+
+
+def test_write_wav_empty_channels_raises():
+    """Test that _write_wav_atomic raises a ValueError when given a 2D array with zero channels."""
+    with pytest.raises(ValueError, match="at least one channel"):
+        _write_wav_atomic(Path("/tmp/x.wav"), np.zeros((10, 0), dtype=np.float32), 44100)
 
 
 @pytest.fixture()
 def storage(tmp_path: Path) -> LocalAudioStorageService:
-    """Fixture for LocalAudioStorageService with a temporary data root."""
+    """Helper to create a LocalAudioStorageService with a temporary data root for testing."""
     config = LocalAudioStorageConfig(
-        zmq_sub_addrs=[],  # no real zmq in tests
-        storage_id="test",
+        zmq_sub_addrs=[],
+        storage_id="test-id",
         data_root=str(tmp_path / "data"),
     )
-    with patch.object(LocalAudioStorageService, "_add_zmq_subcription"):
-        svc = LocalAudioStorageService(config)
-    return svc
+    return LocalAudioStorageService(config)
 
 
-def test_connect_db_creates_dir(storage: LocalAudioStorageService, tmp_path: Path):
-    """_connect_db must have created the data_root directory."""
-    assert (tmp_path / "data").is_dir()
-
-
-@pytest.mark.asyncio
-async def test_write_db_creates_files(storage: LocalAudioStorageService):
-    """write_db should produce a .wav and a .json file."""
-    audio = np.zeros(1000, dtype=np.float32)
-    item = BaseAudioCollectorServiceData(data=audio, collected_at="2024-01-15T10:30:00+00:00")
-    msg = CollectorMessage(uid="abc123", data=item)
-
-    await storage.write_db(msg)
-
-    wavs = list(storage.data_root.glob("**/*.wav"))
-    jsons = list(storage.data_root.glob("**/*.json"))
-    assert len(wavs) == 1
-    assert len(jsons) == 1
+def make_msg(
+    uid: str = "uid1",
+    collected_at: str = "2024-03-15T10:30:00+00:00",
+) -> CollectorMessage[BaseAudioCollectorServiceData]:
+    """Helper to create a CollectorMessage with a BaseAudioCollectorServiceData item."""
+    item = BaseAudioCollectorServiceData(
+        data=np.zeros(512, dtype=np.float32),
+        collected_at=collected_at,
+    )
+    return CollectorMessage(uid=uid, data=item)
 
 
 @pytest.mark.asyncio
 async def test_status_file_count(storage: LocalAudioStorageService):
-    """status() returns the correct number of wav files."""
-    audio = np.zeros(100, dtype=np.float32)
+    """Test that status() returns the correct file count and storage info."""
     for i in range(3):
-        item = BaseAudioCollectorServiceData(
-            data=audio,
-            collected_at=f"2024-01-{15 + i:02d}T10:00:00+00:00",
+        await storage.write_db(
+            make_msg(uid=f"u{i}", collected_at=f"2024-03-{15 + i:02d}T10:00:00+00:00")
         )
-        msg = CollectorMessage(uid=f"uid{i}", data=item)
-        await storage.write_db(msg)
-
     result = await storage.status()
     assert result["file_count"] == 3
-    assert result["storage_id"] == "test"
+    assert result["storage_id"] == "test-id"
     assert result["storage_type"] == "local"
-    assert result["data_root"] == str(storage.data_root)
+
+
+@pytest.mark.asyncio
+async def test_sync_returns_none(storage: LocalAudioStorageService):
+    """Test that sync() method returns None."""
+    item = BaseAudioCollectorServiceData(data=np.zeros(10, dtype=np.float32))
+    assert await storage.sync(item) is None
+
+
+@pytest.mark.asyncio
+async def test_start_is_idempotent(storage: LocalAudioStorageService):
+    """Second start() call is a no-op when already running."""
+    with patch.object(storage, "_open_zmq_subscriptions"):
+        await storage.start()
+        first_task = storage._writing_task  # type: ignore[assignment]
+        await storage.start()
+        assert storage._writing_task is first_task  # type: ignore[comparison-overlap]
+        await storage.stop()

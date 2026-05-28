@@ -1,39 +1,52 @@
-"""Tests for the storage service."""
+"""Tests for storage_service.py."""
 
 import asyncio
-from unittest.mock import MagicMock
-import sys
-
 from typing import Any
+import pytest
 
-from concept.storage_service import _put_nowait_with_drop, CollectorMessage  # type: ignore
+from concept.storage_service import (
+    CollectorMessage,
+    _put_nowait_with_drop,
+    write_db_from_queue,
+)  # type: ignore[import]
 
 
-sys.modules.setdefault("zmq", MagicMock())
-sys.modules.setdefault("zmq.asyncio", MagicMock())
-
-
-def make_msg(n: int) -> CollectorMessage[Any]:
-    """Make a dummy CollectorMessage."""
+def msg(n: int) -> CollectorMessage[Any]:
+    """Helper to create a CollectorMessage with given uid and empty data."""
     return CollectorMessage(uid=str(n), data={})
 
 
-def test_put_nowait_with_drop_normal():
-    """Item goes in when queue has room."""
-    q: asyncio.Queue[CollectorMessage[Any]] = asyncio.Queue(maxsize=3)
-    _put_nowait_with_drop(q, make_msg(1))
-    assert q.qsize() == 1
-
-
-def test_put_nowait_with_drop_full():
-    """When queue is full the oldest item is dropped and new one inserted."""
+def test_put_nowait_drops_oldest_when_full():
+    """When the queue is full, the oldest item is dropped to make space for new data."""
     q: asyncio.Queue[CollectorMessage[Any]] = asyncio.Queue(maxsize=2)
-    _put_nowait_with_drop(q, make_msg(1))
-    _put_nowait_with_drop(q, make_msg(2))
-    # queue is now full; next call should drop one and insert new
-    _put_nowait_with_drop(q, make_msg(3))
+    _put_nowait_with_drop(q, msg(1))
+    _put_nowait_with_drop(q, msg(2))
+    _put_nowait_with_drop(q, msg(3))  # full — drops msg(1), inserts msg(3)
     assert q.qsize() == 2
-    # the latest item must be present
     items = [q.get_nowait(), q.get_nowait()]
-    uids = {i["uid"] for i in items}
-    assert "3" in uids
+    assert {i["uid"] for i in items} == {"2", "3"}
+
+
+@pytest.mark.asyncio
+async def test_write_db_from_queue_continues_after_error():
+    """Exception in write_fn is swallowed; next message is still processed."""
+    results: list[str] = []
+
+    async def write_fn(data: CollectorMessage[Any]) -> None:
+        if data["uid"] == "bad":
+            raise RuntimeError("boom")
+        results.append(data["uid"])
+
+    bad: CollectorMessage[Any] = CollectorMessage(uid="bad", data={})
+    q: asyncio.Queue[CollectorMessage[Any]] = asyncio.Queue()
+    await q.put(msg(0))
+    await q.put(bad)
+    await q.put(msg(2))
+
+    task = asyncio.create_task(write_db_from_queue(q, write_fn))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert results == ["0", "2"]
