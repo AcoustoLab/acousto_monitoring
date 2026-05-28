@@ -80,11 +80,7 @@ class LocalAudioStorageService(
     def _write_files(self, uid: str, item: BaseAudioCollectorServiceData) -> None:
         audio = _pcm16_audio(item.data)
         collected_at = datetime.fromisoformat(item.collected_at)
-        rel_dir = Path(
-            f"{collected_at:%Y}",
-            f"{collected_at:%m}",
-            f"{collected_at:%d}"
-        )
+        rel_dir = Path(f"{collected_at:%Y}", f"{collected_at:%m}", f"{collected_at:%d}")
         target_dir = self.data_root / rel_dir
         target_dir.mkdir(parents=True, exist_ok=True)
 

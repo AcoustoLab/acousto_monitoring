@@ -7,5 +7,5 @@ __all__ = [
     "ToyStorageService",
     "ToyCollectorServiceData",
     "ToyCollectorServiceConfig",
-    "ToyCollectorService"
+    "ToyCollectorService",
 ]

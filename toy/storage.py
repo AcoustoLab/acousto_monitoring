@@ -79,6 +79,7 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig, ToyCollectorSer
 
         Expected message shape: {"device": <uid>, "data": <model_dump dict>}.
         """
+
         def _write():
             assert self.db is not None
             device = data.get("device")
@@ -107,6 +108,7 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig, ToyCollectorSer
 
     async def status(self) -> dict[str, Any]:
         """Get database status."""
+
         def _status():
             assert self.db is not None
             cursor = self.db.cursor()
@@ -118,6 +120,7 @@ class ToyStorageService(AbstractStorageService[ToyStorageConfig, ToyCollectorSer
                 "db_path": self._config.db_path,
                 "data_count": count,
             }
+
         return await asyncio.to_thread(_status)
 
 

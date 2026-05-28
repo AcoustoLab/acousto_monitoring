@@ -56,7 +56,7 @@ def test_pcm16_empty_channels():
 def storage(tmp_path: Path) -> LocalAudioStorageService:
     """Fixture for LocalAudioStorageService with a temporary data root."""
     config = LocalAudioStorageConfig(
-        zmq_sub_addrs=[],           # no real zmq in tests
+        zmq_sub_addrs=[],  # no real zmq in tests
         storage_id="test",
         data_root=str(tmp_path / "data"),
     )

@@ -53,7 +53,7 @@ async def listen_to_zmq_queue[DataT: CollectorServiceData](
 
 async def write_db_from_queue[DataT: CollectorServiceData](
     queue: asyncio.Queue[CollectorMessage[DataT]],
-    write_db_fn: Callable[[CollectorMessage[DataT]], Awaitable[None]]
+    write_db_fn: Callable[[CollectorMessage[DataT]], Awaitable[None]],
 ) -> None:
     """Write data from queue to database."""
     while True:
@@ -123,9 +123,7 @@ class AbstractStorageService[
             )
             self._listening_tasks.append(listening_task)
 
-        self._writing_task = asyncio.create_task(
-            write_db_from_queue(self._queue, self.write_db)
-        )
+        self._writing_task = asyncio.create_task(write_db_from_queue(self._queue, self.write_db))
 
     async def stop(self):
         """Stop the storage service."""
