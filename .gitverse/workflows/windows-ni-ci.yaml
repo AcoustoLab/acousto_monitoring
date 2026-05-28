@@ -1,4 +1,4 @@
-name: CI
+name: windows-ni CI
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: windows-ni:host
+    runs-on: windows-ni
 
     steps:
       - uses: actions/checkout@v4
