@@ -3,7 +3,7 @@
 import numpy as np
 import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
-
+from nidaqmx.stream_readers import AnalogSingleChannelReader
 
 class NICollectorConfig(CollectorServiceConfig):
     channel: str = "Dev1/ai0"
@@ -23,7 +23,7 @@ class NIDevice:
 
         self.task: nidaqmx.Task | None = None
 
-        self.reader: nidaqmx.stream_readers.AnalogSingleChannelReader | None = None
+        self.reader: AnalogSingleChannelReader | None = None
 
         self.buffer: np.ndarray | None = None
 
@@ -44,7 +44,7 @@ class NIDevice:
         )
 
         # == Optimized stream reader ==
-        reader = nidaqmx.stream_readers.AnalogSingleChannelReader(
+        reader = AnalogSingleChannelReader(
             task.in_stream,
         )
 
