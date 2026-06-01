@@ -14,12 +14,12 @@ from concept.ni_collector_service import (
 @pytest.fixture
 def config() -> NICollectorConfig:
     return NICollectorConfig(
-        channel="Dev1/ai0", sample_rate=1000, samples_per_read=10, zmq_addr="1.1.1.1"
+        channel="Dev1/ai0", sample_rate=1000, samples_per_read=100, zmq_addr="1.1.1.1"
     )
 
 
-@patch("nidaqmx.stream_readers.AnalogSingleChannelReader")
-@patch("nidaqmx.Task")
+@patch("concept.ni_collector_service.AnalogSingleChannelReader")
+@patch("concept.ni_collector_service.nidaqmx.Task")
 def test_connect(
     mock_task_cls,
     mock_reader_cls,
@@ -82,7 +82,7 @@ def test_read_without_reader(config: NICollectorConfig):
 
     device = NIDevice(config)
 
-    device.buffer = np.zeros(10)
+    device.buffer = np.zeros(100)
 
     with pytest.raises(RuntimeError):
         device.read()
@@ -108,7 +108,7 @@ def test_disconnect(config: NICollectorConfig):
 
     device.reader = MagicMock()
 
-    device.buffer = np.zeros(10)
+    device.buffer = np.zeros(100)
 
     device.disconnect()
 

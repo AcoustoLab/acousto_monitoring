@@ -5,6 +5,7 @@ import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
 from nidaqmx.stream_readers import AnalogSingleChannelReader
 
+
 class NICollectorConfig(CollectorServiceConfig):
     channel: str = "Dev1/ai0"
     sample_rate: float = 10_000
