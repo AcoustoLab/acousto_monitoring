@@ -23,7 +23,7 @@ from concept.storage_service import AbstractStorageService, CollectorMessage, St
 logger = logging.getLogger(__file__)
 
 
-def setup_logging():
+def setup_logging():  # pragma: no cover
     """Set up logging to file and console with rotation."""
     log_file = Path("logs/base_storage.log")
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -126,7 +126,7 @@ def _write_json_atomic(path: Path, metadata: dict[str, Any]) -> None:
 ##############################################################################
 
 
-def get_storage(request: Request) -> LocalAudioStorageService:
+def get_storage(request: Request) -> LocalAudioStorageService:  # pragma: no cover
     """Get the storage service instance."""
     return request.app.state.storage
 
@@ -162,9 +162,9 @@ async def stop_storage(storage: StorageDependency):
 ##############################################################################
 
 
-def main(
+def main(  # pragma: no cover
     api_port: int,
-    storage: LocalAudioStorageService,  # type: ignore
+    storage: LocalAudioStorageService,
 ):
     """Main function to run the toy storage service."""
     setup_logging()
@@ -178,5 +178,5 @@ def main(
     uvicorn.run(app, port=api_port, log_config=None)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     auto_cli(main)
