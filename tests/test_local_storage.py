@@ -43,13 +43,13 @@ def make_msg(
 
 
 def test_write_wav_1d(tmp_path: Path) -> None:
-    """"Test that _write_wav_atomic can write a 1D mono audio array."""
+    """Test that _write_wav_atomic can write a 1D mono audio array."""
     _write_wav_atomic(tmp_path / "out.wav", np.zeros(1000, dtype=np.float32), 44100)
     assert (tmp_path / "out.wav").exists()
 
 
 def test_write_wav_2d_stereo(tmp_path: Path) -> None:
-    """"Test that _write_wav_atomic can write a 2D stereo audio array."""
+    """Test that _write_wav_atomic can write a 2D stereo audio array."""
     _write_wav_atomic(tmp_path / "out.wav", np.zeros((1000, 2), dtype=np.float32), 44100)
     assert (tmp_path / "out.wav").exists()
 
@@ -124,6 +124,7 @@ async def test_start_is_idempotent(storage: LocalAudioStorageService) -> None:
 def client(storage: LocalAudioStorageService) -> TestClient:
     """Fixture to create a TestClient with the storage service dependency."""
     from fastapi import FastAPI
+
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state.storage = storage

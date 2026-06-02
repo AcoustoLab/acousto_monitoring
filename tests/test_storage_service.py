@@ -28,7 +28,8 @@ class DummyStorage(AbstractStorageService[StorageServiceConfig, CollectorService
     def _connect_db(self) -> None: ...
     async def write_db(self, data: CollectorMessage[CollectorServiceData]) -> None: ...
     async def sync(self, data: CollectorServiceData) -> None: ...
-    async def status(self) -> dict[str, Any]: return {}
+    async def status(self) -> dict[str, Any]:
+        return {}
 
 
 @pytest.fixture()

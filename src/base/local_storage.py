@@ -79,8 +79,8 @@ class LocalAudioStorageService(
 
     def _write_files(self, uid: str, item: BaseAudioCollectorServiceData) -> None:
         collected_at = datetime.fromisoformat(item.collected_at)
-        rel_dir = Path(f"{collected_at:%Y}", f"{collected_at:%m}", f"{collected_at:%d}")
-        target_dir = self.data_root / rel_dir / uid
+        rel_dir = Path(f"{collected_at:%Y}", f"{collected_at:%m}", f"{collected_at:%d}", uid)
+        target_dir = self.data_root / rel_dir
         target_dir.mkdir(parents=True, exist_ok=True)
 
         wav_rel = rel_dir / f"{collected_at:%H%M%S}_{item.recording_id}.wav"
