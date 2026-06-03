@@ -1,7 +1,10 @@
+"""Configuration file for pytest."""
+
 import pytest
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Pytest parser options."""
     parser.addoption(
         "--run-ni",
         action="store_true",
@@ -10,8 +13,8 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_collection_modifyitems(config, items):
-
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]):
+    """Skip integration tests without special flag."""
     if config.getoption("--run-ni"):
         return
 

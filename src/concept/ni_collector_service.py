@@ -4,15 +4,20 @@ import numpy as np
 import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
 from nidaqmx.stream_readers import AnalogSingleChannelReader
+from nidaqmx.task._task import Task
 
 
 class NICollectorConfig(CollectorServiceConfig):
+    """NI device specific config."""
+
     channel: str = "Dev1/ai0"
     sample_rate: float = 10_000
     samples_per_read: int = 1000
 
 
 class NICollectorData(CollectorServiceData):
+    """Buffer to collect several samples at once."""
+
     samples: list[float]
 
 
@@ -22,7 +27,7 @@ class NIDevice:
     def __init__(self, config: NICollectorConfig):
         self.config = config
 
-        self.task: nidaqmx.Task | None = None
+        self.task: Task | None = None
 
         self.reader: AnalogSingleChannelReader | None = None
 
@@ -30,17 +35,17 @@ class NIDevice:
 
     def connect(self):
         """Create and configure persistent NI task."""
-        task = nidaqmx.Task()
+        task = Task()
 
         # == Configure analog input channel ==
-        task.ai_channels.add_ai_voltage_chan(
+        task.ai_channels.add_ai_voltage_chan(  # type: ignore
             self.config.channel,
         )
 
         # == Configure continuous acquisition ==
-        task.timing.cfg_samp_clk_timing(
+        task.timing.cfg_samp_clk_timing(  # type: ignore
             rate=self.config.sample_rate,
-            sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
+            sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,  # type: ignore
             samps_per_chan=self.config.samples_per_read * 10,
         )
 
@@ -70,7 +75,7 @@ class NIDevice:
         if self.buffer is None:
             raise RuntimeError("Buffer is not initialized")
 
-        self.reader.read_many_sample(
+        self.reader.read_many_sample(  # type: ignore
             self.buffer,
             number_of_samples_per_channel=len(self.buffer),
         )
@@ -122,11 +127,11 @@ class NICollectorService(CollectorService[CollectorServiceConfig, CollectorServi
         Stop the collector and cancel the publishing task.
         """
         self.device.disconnect()
-        await super().__aexit__(
-            exc_type,
-            exc_val,
-            exc_tb,
-        )  # type: ignore
+        await super().__aexit__(  # type: ignore
+            exc_type,  # type: ignore
+            exc_val,  # type: ignore
+            exc_tb,  # type: ignore
+        )
 
     def record(self) -> CollectorServiceData:
         """Simulate recording by sleeping and returning dummy data."""

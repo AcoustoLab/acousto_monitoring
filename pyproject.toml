@@ -48,6 +48,9 @@ typeCheckingMode = "strict"
 [tool.pytest]
 addopts = ["--cov=src", "--cov-report=html", "--cov-report=term:skip-covered", "--cov-fail-under=100"]
 asyncio_mode = "auto"
+markers = [
+    "integration: requires real NI hardware",
+]
 
 [build-system]
 requires = ["hatchling"]

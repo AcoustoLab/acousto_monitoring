@@ -1,3 +1,5 @@
+"""NI device tests."""
+
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -8,23 +10,27 @@ from concept.ni_collector_service import (
     NICollectorConfig,
     NICollectorData,
     NIDevice,
+    Task,
+    AnalogSingleChannelReader,
 )
 
 
 @pytest.fixture
 def config() -> NICollectorConfig:
+    """NI collector config for tests."""
     return NICollectorConfig(
         channel="Dev1/ai0", sample_rate=1000, samples_per_read=100, zmq_addr="1.1.1.1"
     )
 
 
 @patch("concept.ni_collector_service.AnalogSingleChannelReader")
-@patch("concept.ni_collector_service.nidaqmx.Task")
+@patch("concept.ni_collector_service.Task")
 def test_connect(
-    mock_task_cls,
-    mock_reader_cls,
+    mock_task_cls: MagicMock,
+    mock_reader_cls: MagicMock,
     config: NICollectorConfig,
 ):
+    """NI device connect test."""
     mock_task = MagicMock()
 
     mock_task_cls.return_value = mock_task
@@ -55,7 +61,7 @@ def test_connect(
 
 
 def test_read_success(config: NICollectorConfig):
-
+    """NI device read test."""
     device = NIDevice(config)
 
     buffer = np.array(
@@ -79,7 +85,7 @@ def test_read_success(config: NICollectorConfig):
 
 
 def test_read_without_reader(config: NICollectorConfig):
-
+    """NI device read without reader test."""
     device = NIDevice(config)
 
     device.buffer = np.zeros(100)
@@ -89,7 +95,7 @@ def test_read_without_reader(config: NICollectorConfig):
 
 
 def test_read_without_buffer(config: NICollectorConfig):
-
+    """NI device read without buffer test."""
     device = NIDevice(config)
 
     device.reader = MagicMock()
@@ -99,7 +105,7 @@ def test_read_without_buffer(config: NICollectorConfig):
 
 
 def test_disconnect(config: NICollectorConfig):
-
+    """NI device disconnect test."""
     device = NIDevice(config)
 
     task = MagicMock()
@@ -124,7 +130,7 @@ def test_disconnect(config: NICollectorConfig):
 
 
 def test_disconnect_without_connect(config: NICollectorConfig):
-
+    """NI device disconnect without connect test."""
     device = NIDevice(config)
 
     device.disconnect()
@@ -134,6 +140,7 @@ def test_disconnect_without_connect(config: NICollectorConfig):
 
 @pytest.mark.integration
 def test_real_device_read(config: NICollectorConfig):
+    """Hardware NI device test."""
     device = NIDevice(config)
 
     device.connect()

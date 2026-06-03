@@ -1,6 +1,6 @@
+"""Tests NI collector."""
+
 import asyncio
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,6 +13,7 @@ from concept.ni_collector_service import (
 
 @pytest.fixture
 def config():
+    """NI device config for tests."""
     return NICollectorConfig(
         channel="Dev1/ai0",
         sample_rate=1000,
@@ -22,6 +23,8 @@ def config():
 
 
 class FakeDevice:
+    """Fake device for API tests."""
+
     def __init__(self):
         self.connected = False
 
@@ -39,7 +42,7 @@ class FakeDevice:
 
 @pytest.mark.asyncio
 async def test_context_manager(config: NICollectorConfig):
-
+    """Test of connecting of NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
@@ -57,7 +60,7 @@ async def test_context_manager(config: NICollectorConfig):
 
 @pytest.mark.asyncio
 async def test_record(config: NICollectorConfig):
-
+    """Test of recording function of NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
@@ -72,7 +75,7 @@ async def test_record(config: NICollectorConfig):
 
 @pytest.mark.asyncio
 async def test_start_and_stop(config):
-
+    """Test of starting and stoping NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
@@ -94,7 +97,7 @@ async def test_start_and_stop(config):
 
 @pytest.mark.asyncio
 async def test_queue_receives_data(config: NICollectorConfig):
-
+    """Test of queue receive data for NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
@@ -117,7 +120,7 @@ async def test_queue_receives_data(config: NICollectorConfig):
 
 @pytest.mark.asyncio
 async def test_multiple_starts_are_safe(config: NICollectorConfig):
-
+    """Test of multiple starts of NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
@@ -141,7 +144,7 @@ async def test_multiple_starts_are_safe(config: NICollectorConfig):
 
 @pytest.mark.asyncio
 async def test_stop_without_start(config: NICollectorConfig):
-
+    """Test of stop without stop of NI collector."""
     collector = NICollectorService(
         uid="test",
         config=config,
