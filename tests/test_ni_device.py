@@ -26,8 +26,8 @@ def config() -> NICollectorConfig:
 @patch("concept.ni_collector_service.AnalogSingleChannelReader")
 @patch("concept.ni_collector_service.Task")
 def test_connect(
-    mock_task_cls: MagicMock,
-    mock_reader_cls: MagicMock,
+    mock_task_cls: Task,
+    mock_reader_cls: AnalogSingleChannelReader,
     config: NICollectorConfig,
 ):
     """NI device connect test."""
