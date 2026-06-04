@@ -5,9 +5,16 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Any
+from botocore.exceptions import ClientError, BotoCoreError
 
 from jsonargparse import auto_cli  # type: ignore
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 import uvicorn
 
 from src.concept.s3_sync_service import S3StorageClient, S3SyncConfigBase, S3SyncService
@@ -41,6 +48,7 @@ class S3SyncConfig(S3SyncConfigBase):
     data_root: str
     upload_every_n_files: int = 60
     upload_every_seconds: int = 600
+    scan_every_seconds: int = 10
     delete_after_upload: bool = False
 
 
@@ -52,6 +60,7 @@ class S3SyncServiceBase(S3SyncService):
         self._client = client
         self._data_root = Path(config.data_root)
         self._task: asyncio.Task[None] | None = None
+        self._sync_lock = asyncio.Lock()
 
     async def start(self) -> None:
         if self._task is not None and not self._task.done():
@@ -68,23 +77,34 @@ class S3SyncServiceBase(S3SyncService):
 
     async def sync_once(self) -> None:
         """Upload all pending files (no .uploaded marker) to object storage."""
-        pending = self._pending_files()
-        if not pending:
-            return
+        if self._sync_lock.locked():
+            logger.info("S3 sync already running, waiting for current pass to finish")
 
-        logger.info("Syncing %d file(s) to S3", len(pending))
-        for local_path in pending:
-            key = local_path.relative_to(self._data_root).as_posix()
-            try:
-                await asyncio.get_running_loop().run_in_executor(
-                    None, self._upload_with_retry, local_path, key
-                )
-                local_path.with_suffix(local_path.suffix + _MARKER_SUFFIX).touch()
-                if self._config.delete_after_upload:
-                    local_path.unlink()
-                    logger.info("Deleted local file %s after upload", local_path)
-            except Exception:
-                logger.exception("Failed to upload %s, will retry next cycle", local_path)
+        async with self._sync_lock:
+            pending = self._pending_files()
+            if not pending:
+                return
+
+            logger.info("Syncing %d file(s) to S3", len(pending))
+            for local_path in pending:
+                key = local_path.relative_to(self._data_root).as_posix()
+                try:
+                    await asyncio.get_running_loop().run_in_executor(
+                        None, self._upload_with_retry, local_path, key
+                    )
+                    local_path.with_suffix(local_path.suffix + _MARKER_SUFFIX).touch()
+                    logger.info("Uploaded %s to S3 key %s", local_path, key)
+                    if self._config.delete_after_upload:
+                        local_path.unlink()
+                        logger.info("Deleted local file %s after upload", local_path)
+                except Exception as exc:
+                    logger.exception(
+                        "Failed to upload %s to S3 key %s: %s (%s). Will retry next cycle",
+                        local_path,
+                        key,
+                        exc,
+                        type(exc).__name__,
+                    )
 
     async def status(self) -> dict[str, Any]:
         pending = self._pending_files()
@@ -98,7 +118,7 @@ class S3SyncServiceBase(S3SyncService):
 
     async def _loop(self) -> None:
         elapsed = 0.0
-        interval = 1.0
+        interval = max(1.0, float(self._config.scan_every_seconds))
         while True:
             await asyncio.sleep(interval)
             elapsed += interval
@@ -112,16 +132,18 @@ class S3SyncServiceBase(S3SyncService):
     def _pending_files(self) -> list[Path]:
         """All .wav and .json files that don't have a corresponding .uploaded marker."""
         return [
-            p for p in self._data_root.glob("**/*")
+            p
+            for p in self._data_root.glob("**/*")
             if p.is_file()
             and p.suffix in {".wav", ".json"}
             and not p.with_suffix(p.suffix + _MARKER_SUFFIX).exists()
         ]
 
     @retry(
-        retry=retry_if_exception_type(Exception),
+        retry=retry_if_exception_type((ClientError, BotoCoreError)),
         wait=wait_exponential(multiplier=1, min=2, max=30),
         stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
     def _upload_with_retry(self, local_path: Path, key: str) -> None:
@@ -170,7 +192,7 @@ async def sync_s3_sync_service(s3_sync_service: S3_SyncServiceDependency):
     await s3_sync_service.sync_once()
 
 
-def main(api_port: int, s3_sync_service: S3SyncServiceBase):
+def main(api_port: int, s3_sync_service: S3SyncServiceBase):  # pragma: no cover
     """Run the FastAPI app with the S3SyncService."""
     setup_logging()
 
@@ -183,5 +205,5 @@ def main(api_port: int, s3_sync_service: S3SyncServiceBase):
     uvicorn.run(app, port=api_port, log_config=None)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     auto_cli(main)
