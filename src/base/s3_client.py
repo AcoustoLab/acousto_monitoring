@@ -56,6 +56,7 @@ class YandexS3Client(S3StorageClient):
         self._s3 = boto3.client(  # type: ignore[reportUnknownMemberType]
             "s3",
             endpoint_url=_ENDPOINT,
+            region_name=config.region,
             aws_access_key_id=credentials.access_key.get_secret_value(),
             aws_secret_access_key=credentials.secret_key.get_secret_value(),
             config=_RETRY_CONFIG,
