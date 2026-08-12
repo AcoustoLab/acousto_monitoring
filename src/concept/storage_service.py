@@ -1,0 +1,165 @@
+"""Storage service abstractions."""
+
+from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
+import json
+from typing import Any, TypedDict
+import contextlib
+import zmq.asyncio
+import asyncio
+
+from pydantic import BaseModel
+from concept.collector_service import CollectorServiceData
+import logging
+
+
+class CollectorMessage[DataT: CollectorServiceData](TypedDict):
+    """Message format for collector data sent to storage service."""
+
+    uid: str
+    data: DataT
+
+
+logger = logging.getLogger(__name__)
+
+
+def _put_nowait_with_drop[DataT: CollectorServiceData](
+    queue: asyncio.Queue[CollectorMessage[DataT]],
+    data: CollectorMessage[DataT],
+) -> None:
+    """Put data in the queue, dropping the oldest item if the queue is full."""
+    try:
+        queue.put_nowait(data)
+    except asyncio.QueueFull:
+        logger.warning("Queue full, dropping data")
+        with contextlib.suppress(asyncio.QueueEmpty):
+            queue.get_nowait()  # drop exactly one oldest item
+        queue.put_nowait(data)
+
+
+async def listen_to_zmq_queue[DataT: CollectorServiceData](
+    socket: zmq.asyncio.Socket,
+    queue: asyncio.Queue[CollectorMessage[DataT]],
+) -> None:
+    """Listen to zmq for incoming data and put it in the queue."""
+    while True:
+        try:
+            data = json.loads((await socket.recv()).decode("utf-8"))
+            logger.info("Received data from zmq")
+            _put_nowait_with_drop(queue, data)
+        except Exception:
+            logger.exception("Error receiving data from zmq")
+
+
+async def write_db_from_queue[DataT: CollectorServiceData](
+    queue: asyncio.Queue[CollectorMessage[DataT]],
+    write_db_fn: Callable[[CollectorMessage[DataT]], Awaitable[None]],
+) -> None:
+    """Write data from queue to database."""
+    while True:
+        data = await queue.get()
+        try:
+            await write_db_fn(data)
+        except Exception:
+            logger.exception("Error writing collector message %s to storage", data.get("uid"))
+
+
+class AbstractDatabase(ABC):
+    """Abstract database class."""
+
+    @abstractmethod
+    async def status(self) -> dict[str, Any]:
+        """Get database status."""
+
+
+class StorageServiceConfig(BaseModel):
+    """Storage service configuration."""
+
+    zmq_sub_addrs: list[str]
+
+
+class AbstractStorageService[
+    StorageServiceConfigT: StorageServiceConfig,
+    DataT: CollectorServiceData,
+](ABC):
+    """Abstract storage service class."""
+
+    def __init__(self, config: StorageServiceConfigT):
+        self._config = config
+        self._db = None
+
+        self._zmq_ctx: zmq.asyncio.Context | None = None
+        self._sub_sockets: list[zmq.asyncio.Socket] = []
+        self._listening_tasks: list[asyncio.Task[None]] = []
+        self._writing_task: asyncio.Task[None] | None = None
+        self._queue: asyncio.Queue[CollectorMessage[DataT]] = asyncio.Queue()
+
+        self._connect_db()
+        self._zmq_addrs = list(self._config.zmq_sub_addrs)
+
+    def _open_zmq_subscriptions(self):
+        """Open zmq subscriber sockets."""
+        self._zmq_ctx = zmq.asyncio.Context()
+        for zmq_addr in self._zmq_addrs:
+            self._add_zmq_subcription(zmq_addr)
+
+    def _add_zmq_subcription(self, zmq_addr: str):
+        """Add a zmq subscriber (synchronous)."""
+        assert self._zmq_ctx is not None
+        sub_socket = self._zmq_ctx.socket(zmq.SUB)
+        sub_socket.connect(zmq_addr)
+        sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        self._sub_sockets.append(sub_socket)
+
+    @abstractmethod
+    def _connect_db(self):
+        """Connect to the database."""
+
+    @abstractmethod
+    async def write_db(self, data: CollectorMessage[DataT]) -> None:
+        """Write data to the database."""
+
+    @abstractmethod
+    async def sync(self, data: DataT) -> None:
+        """Sync data."""
+
+    async def start(self):
+        """Start the storage service."""
+        if self._writing_task is not None and not self._writing_task.done():
+            return
+
+        self._open_zmq_subscriptions()
+        for sub_socket in self._sub_sockets:
+            listening_task = asyncio.create_task(
+                listen_to_zmq_queue(sub_socket, self._queue),
+            )
+            self._listening_tasks.append(listening_task)
+
+        self._writing_task = asyncio.create_task(write_db_from_queue(self._queue, self.write_db))
+
+    async def stop(self):
+        """Stop the storage service."""
+        tasks = list(self._listening_tasks)
+        if self._writing_task:
+            tasks.append(self._writing_task)
+
+        for task in tasks:
+            task.cancel()
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        self._listening_tasks.clear()
+        self._writing_task = None
+
+        for socket in self._sub_sockets:  # later it wiil be in context manager
+            socket.close()
+        self._sub_sockets.clear()
+
+        if self._zmq_ctx is not None:
+            self._zmq_ctx.term()
+            self._zmq_ctx = None
+
+    @abstractmethod
+    async def status(self) -> dict[str, Any]:
+        """Get storage service status."""
