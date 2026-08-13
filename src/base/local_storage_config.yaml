@@ -1,0 +1,8 @@
+api_port: 8103
+storage:
+  class_path: LocalAudioStorageService
+  init_args:
+    config:
+      storage_id: "base_local_storage_service"
+      zmq_sub_addrs:
+        - "tcp://localhost:9101"
