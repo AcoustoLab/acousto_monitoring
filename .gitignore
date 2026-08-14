@@ -82,3 +82,6 @@ Thumbs.db
 
 # logs
 logs/
+
+# data
+data/

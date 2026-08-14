@@ -1,28 +1,76 @@
 """Collector service for NI devices."""
 
 import numpy as np
-import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
-from nidaqmx.stream_readers import AnalogSingleChannelReader
+from nidaqmx.stream_readers import AnalogSingleChannelReader, AnalogMultiChannelReader
 from nidaqmx.constants import (
-    TerminalConfiguration,
-    SoundPressureUnits,
+    Coupling,
     ExcitationSource,
     AcquisitionType,
-    Coupling,
 )
 from nidaqmx.task._task import Task
 from concept.pydantic_serializers import SerializedNDArray
-from typing import Annotated, cast
+from dataclasses import dataclass, field
+from typing import Annotated
 
+
+@dataclass
+class NIChannelConfig:
+    """
+    Configuration for a single NI channel.
+
+    Do not forget to set the excitation current for IEPE sensors(e.g. mics, accelerometers).
+    """
+
+    channel: str
+    iepe: bool = False
+    iepe_current: float = 0.0021
+    coupling: Coupling = Coupling.DC  # type: ignore
+    min_val: float = -10.0
+    max_val: float = 10.0
 
 
 class NICollectorConfig(CollectorServiceConfig):
     """NI device specific config."""
 
-    channel: str = "Dev1/ai0"
-    sample_rate: float = 10_000
-    samples_per_read: int = 1000
+    sample_rate: float = 48_000
+    samples_per_read: int = 480000
+
+    channels: list[NIChannelConfig] = field(
+        default_factory=list,
+    )
+
+
+######## Config Example #############################
+# NICollectorConfig(
+#     sample_rate=48_000,
+#     samples_per_read=4800,
+#     channels=[
+#         NIChannelConfig(
+#             channel="Dev1/ai0",       # ВТ-003-Т vibration
+#             iepe=True,
+#             coupling=Coupling.AC,
+#         ),
+#         NIChannelConfig(
+#             channel="Dev1/ai1",       # ВТ-003-Т temperature
+#             iepe=False,
+#             coupling=Coupling.DC,
+#         ),
+#         NIChannelConfig(
+#             channel="Dev1/ai2",       # microphone
+#             iepe=True,
+#             coupling=Coupling.AC,
+#         ),
+#     ],
+# )
+##################################################
+
+# class NICollectorConfig(CollectorServiceConfig):
+#     """NI device specific config."""
+
+#     channel: str = "Dev1/ai0"
+#     sample_rate: float = 10_000
+#     samples_per_read: int = 1000
 
 
 class NICollectorData(CollectorServiceData):
@@ -39,7 +87,7 @@ class NIDevice:
 
         self.task: Task | None = None
 
-        self.reader: AnalogSingleChannelReader | None = None
+        self.reader: AnalogSingleChannelReader | AnalogMultiChannelReader | None = None
 
         self.buffer: np.ndarray | None = None
 
@@ -49,33 +97,46 @@ class NIDevice:
             return
         task = Task()
 
-        # == Configure analog input channel ==
-        chan = task.ai_channels.add_ai_voltage_chan(  # type: ignore
-            self.config.channel,
-        )
-        chan.ai_excit_src = ExcitationSource.INTERNAL
-        chan.ai_excit_val = 0.0021
-        chan.ai_coupling = Coupling.AC
+        # Configure channels
+        for config in self.config.channels:
+            chan = task.ai_channels.add_ai_voltage_chan(
+                config.channel,
+                min_val=config.min_val,
+                max_val=config.max_val,
+            )
 
-        # == Configure continuous acquisition ==
-        task.timing.cfg_samp_clk_timing(  # type: ignore
+            if config.iepe:
+                chan.ai_excit_src = ExcitationSource.INTERNAL
+                chan.ai_excit_val = config.iepe_current
+
+            chan.ai_coupling = config.coupling
+
+        # Configure continuous acquisition
+        task.timing.cfg_samp_clk_timing(
             rate=self.config.sample_rate,
-            sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,  # type: ignore
+            sample_mode=AcquisitionType.CONTINUOUS,
             samps_per_chan=self.config.samples_per_read * 10,
         )
 
-        # == Optimized stream reader ==
-        reader = AnalogSingleChannelReader(
-            task.in_stream,
-        )
+        # Multi-channel reader
+        if len(self.config.channels) == 1:
+            reader = AnalogSingleChannelReader(
+                task.in_stream,
+            )
+        else:
+            reader = AnalogMultiChannelReader(
+                task.in_stream,
+            )
 
-        # == Preallocated acquisition buffer ==
+        # [channel, sample]
         buffer = np.zeros(
-            self.config.samples_per_read,
+            (
+                len(self.config.channels),
+                self.config.samples_per_read,
+            ),
             dtype=np.float64,
         )
 
-        # == Start acquisition ==
         task.start()
 
         self.task = task
@@ -92,11 +153,11 @@ class NIDevice:
 
         self.reader.read_many_sample(  # type: ignore
             self.buffer,
-            number_of_samples_per_channel=len(self.buffer),
+            number_of_samples_per_channel=self.config.samples_per_read,
         )
 
         return NICollectorData(
-            data=self.buffer,
+            data=self.buffer.copy(),
         )
 
     def disconnect(self):

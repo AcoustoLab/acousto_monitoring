@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.13.3",
     "pyzmq>=27.1.0",
     "soundfile>=0.13.1",
+    "tornado>=6.5.8",
 ]
 
 [dependency-groups]

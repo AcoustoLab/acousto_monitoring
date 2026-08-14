@@ -1,0 +1,30 @@
+api_port: 8105
+collector:
+  class_path: NICollectorService
+  init_args:
+    uid: "ni_acoustic_device"
+    config:
+      zmq_addr: tcp://*:9101
+      sample_rate: 44100
+      samples_per_read: 441000
+      channels:
+      - channel: "Dev1/ai0"
+        iepe: true
+        iepe_current: 0.0021
+        coupling: "AC"
+        min_val: -10.0
+        max_val: 10.0
+
+      - channel: "Dev1/ai1"
+        iepe: true
+        iepe_current: 0.0021
+        coupling: "AC"
+        min_val: -10.0
+        max_val: 10.0
+
+      - channel: "Dev1/ai3"
+        iepe: true
+        iepe_current: 0.0021
+        coupling: "AC"
+        min_val: -10.0
+        max_val: 10.0

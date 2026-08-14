@@ -1,18 +1,16 @@
+"""Toy script to run the NI collector service."""
+
 from src.concept.ni_collector_service import NICollectorService
 from jsonargparse import auto_cli  # type: ignore
 
-from concept.collector_service import CollectorService, AbstractCollectorService
+from concept.collector_service import AbstractCollectorService
 from concept.collector_service import CollectorServiceConfig, CollectorServiceData
-import time
-import numpy as np
-from concept.pydantic_serializers import SerializedNDArray
 
-from typing import Annotated, cast
+from typing import cast
 
 from concept.collector_service import get_app
 import uvicorn
 
-from jsonargparse import auto_cli  # type: ignore
 
 import logging
 from logging.handlers import RotatingFileHandler
