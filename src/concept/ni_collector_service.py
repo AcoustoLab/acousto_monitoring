@@ -4,7 +4,17 @@ import numpy as np
 import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
 from nidaqmx.stream_readers import AnalogSingleChannelReader
+from nidaqmx.constants import (
+    TerminalConfiguration,
+    SoundPressureUnits,
+    ExcitationSource,
+    AcquisitionType,
+    Coupling,
+)
 from nidaqmx.task._task import Task
+from concept.pydantic_serializers import SerializedNDArray
+from typing import Annotated, cast
+
 
 
 class NICollectorConfig(CollectorServiceConfig):
@@ -18,7 +28,7 @@ class NICollectorConfig(CollectorServiceConfig):
 class NICollectorData(CollectorServiceData):
     """Buffer to collect several samples at once."""
 
-    samples: list[float]
+    data: Annotated[np.ndarray, SerializedNDArray]
 
 
 class NIDevice:
@@ -35,12 +45,17 @@ class NIDevice:
 
     def connect(self):
         """Create and configure persistent NI task."""
+        if self.task is not None:
+            return
         task = Task()
 
         # == Configure analog input channel ==
-        task.ai_channels.add_ai_voltage_chan(  # type: ignore
+        chan = task.ai_channels.add_ai_voltage_chan(  # type: ignore
             self.config.channel,
         )
+        chan.ai_excit_src = ExcitationSource.INTERNAL
+        chan.ai_excit_val = 0.0021
+        chan.ai_coupling = Coupling.AC
 
         # == Configure continuous acquisition ==
         task.timing.cfg_samp_clk_timing(  # type: ignore
@@ -81,7 +96,7 @@ class NIDevice:
         )
 
         return NICollectorData(
-            samples=self.buffer.tolist(),
+            data=self.buffer,
         )
 
     def disconnect(self):
@@ -118,7 +133,6 @@ class NICollectorService(CollectorService[CollectorServiceConfig, CollectorServi
         Start a publishing task that listens for device data and sends it to zmq.
         """
         await super().__aenter__()
-        self.device.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):  # type: ignore
@@ -126,12 +140,26 @@ class NICollectorService(CollectorService[CollectorServiceConfig, CollectorServi
 
         Stop the collector and cancel the publishing task.
         """
-        self.device.disconnect()
         await super().__aexit__(  # type: ignore
             exc_type,  # type: ignore
             exc_val,  # type: ignore
             exc_tb,  # type: ignore
         )
+
+    async def start(self):
+        """Open NI task and start polling."""
+        if self.device.task is None:
+            self.device.connect()
+        try:
+            await super().start()
+        except Exception:
+            self.device.disconnect()
+            raise
+
+    async def stop(self):
+        """Stop polling and close NI task."""
+        await super().stop()
+        self.device.disconnect()
 
     def record(self) -> CollectorServiceData:
         """Simulate recording by sleeping and returning dummy data."""
