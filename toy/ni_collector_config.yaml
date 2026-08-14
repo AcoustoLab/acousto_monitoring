@@ -1,0 +1,10 @@
+api_port: 8105
+collector:
+  class_path: NICollectorService
+  init_args:
+    uid: "ni_acoustic_device"
+    config:
+      zmq_addr: tcp://*:9101
+      sample_rate: 44100
+      samples_per_read: 441000
+      channel: Dev1/ai0
