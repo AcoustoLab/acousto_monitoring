@@ -14,5 +14,3 @@ s3_sync_service:
           region: ru-central1
           bucket: test-monitoring
           prefix: obto3
-          # access_key: ${YANDEX_S3_ACCESS_KEY}
-          # secret_key: ${YANDEX_S3_SECRET_KEY}
