@@ -12,7 +12,6 @@ dependencies = [
     "numpy>=2.4.4",
     "pydantic>=2.13.3",
     "pyzmq>=27.1.0",
-    "soundfile>=0.13.1",
     "tenacity>=9.1.4",
 ]
 

@@ -1,4 +1,4 @@
-"""Local WAV and JSON storage for audio collector messages."""
+"""Local NPZ and JSON storage for audio collector messages."""
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -11,7 +11,6 @@ from fastapi import FastAPI, Request
 from fastapi.routing import APIRouter
 from jsonargparse import auto_cli  # type: ignore
 import numpy as np
-import soundfile as sf  # type: ignore
 from datetime import datetime
 
 import uvicorn
@@ -50,7 +49,7 @@ class LocalAudioStorageConfig(StorageServiceConfig):
 class LocalAudioStorageService(
     AbstractStorageService[LocalAudioStorageConfig, BaseAudioCollectorServiceData]
 ):
-    """Store collector audio as paired WAV and JSON files."""
+    """Store collector audio as per-channel NPZ files and JSON metadata."""
 
     def __init__(self, config: LocalAudioStorageConfig):
         super().__init__(config)
@@ -69,7 +68,7 @@ class LocalAudioStorageService(
         return None
 
     async def status(self) -> dict[str, Any]:
-        count = sum(1 for _ in self.data_root.glob("**/*.wav"))
+        count = sum(1 for _ in self.data_root.glob("**/*.npz"))
         return {
             "storage_id": self._config.storage_id,
             "storage_type": self._config.storage_type,
@@ -83,13 +82,23 @@ class LocalAudioStorageService(
         target_dir = self.data_root / rel_dir
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        wav_rel = rel_dir / f"{collected_at:%H%M%S}_{item.recording_id}.wav"
         json_rel = rel_dir / f"{collected_at:%H%M%S}_{item.recording_id}.json"
-        wav_path = self.data_root / wav_rel
         json_path = self.data_root / json_rel
 
-        _write_wav_atomic(wav_path, item.data, item.sample_rate)
-        logger.info(f"Stored audio data {item.recording_id} for {uid} at {wav_path}")
+        audio = item.data
+        if audio.ndim not in {1, 2}:
+            raise ValueError("audio_data must be 1D mono or 2D frames/channels")
+        if audio.ndim == 2 and audio.shape[1] < 1:
+            raise ValueError("audio_data must have at least one channel")
+
+        channel_count = 1 if audio.ndim == 1 else audio.shape[1]
+        for channel in range(channel_count):
+            channel_data = audio if audio.ndim == 1 else audio[:, channel]
+            npz_path = target_dir / (
+                f"{collected_at:%H%M%S}_{item.recording_id}_channel{channel}.npz"
+            )
+            _write_npz_atomic(npz_path, channel_data)
+            logger.info("Stored audio data %s for %s at %s", item.recording_id, uid, npz_path)
 
         metadata = {
             "uid": uid,
@@ -102,15 +111,16 @@ class LocalAudioStorageService(
         logger.info(f"Stored metadata {item.recording_id} for {uid} at {json_path}")
 
 
-def _write_wav_atomic(path: Path, audio: np.ndarray, sample_rate: int) -> None:
-    """Write a WAV file through a temporary path."""
+def _write_npz_atomic(path: Path, audio: np.ndarray) -> None:
+    """Write an audio channel to an NPZ file through a temporary path."""
     if audio.ndim not in {1, 2}:
         raise ValueError("audio_data must be 1D mono or 2D frames/channels")
     if audio.ndim == 2 and audio.shape[1] < 1:
         raise ValueError("audio_data must have at least one channel")
 
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    sf.write(tmp_path, audio, sample_rate, format="WAV")  # type: ignore
+    with tmp_path.open("wb") as file:
+        np.savez_compressed(file, data=audio)
     tmp_path.replace(path)
 
 

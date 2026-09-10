@@ -130,12 +130,12 @@ class S3SyncServiceBase(S3SyncService):
                 elapsed = 0.0
 
     def _pending_files(self) -> list[Path]:
-        """All .wav and .json files that don't have a corresponding .uploaded marker."""
+        """All .npz and .json files without a corresponding .uploaded marker."""
         return [
             p
             for p in self._data_root.glob("**/*")
             if p.is_file()
-            and p.suffix in {".wav", ".json"}
+            and p.suffix in {".npz", ".json"}
             and not p.with_suffix(p.suffix + _MARKER_SUFFIX).exists()
         ]
 

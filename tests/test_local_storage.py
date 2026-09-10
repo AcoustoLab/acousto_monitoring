@@ -13,7 +13,7 @@ from base.audio_data import BaseAudioCollectorServiceData
 from base.local_storage import (
     LocalAudioStorageConfig,
     LocalAudioStorageService,
-    _write_wav_atomic,  # type: ignore
+    _write_npz_atomic,
     router,
 )
 from concept.storage_service import CollectorMessage
@@ -42,28 +42,29 @@ def make_msg(
     return CollectorMessage(uid=uid, data=item.model_dump())
 
 
-def test_write_wav_1d(tmp_path: Path) -> None:
-    """Test that _write_wav_atomic can write a 1D mono audio array."""
-    _write_wav_atomic(tmp_path / "out.wav", np.zeros(1000, dtype=np.float32), 44100)
-    assert (tmp_path / "out.wav").exists()
+def test_write_npz_1d(tmp_path: Path) -> None:
+    """Test that _write_npz_atomic can write a 1D mono audio array."""
+    _write_npz_atomic(tmp_path / "out.npz", np.zeros(1000, dtype=np.float32))
+    assert (tmp_path / "out.npz").exists()
+    np.testing.assert_array_equal(np.load(tmp_path / "out.npz")["data"], np.zeros(1000))
 
 
-def test_write_wav_2d_stereo(tmp_path: Path) -> None:
-    """Test that _write_wav_atomic can write a 2D stereo audio array."""
-    _write_wav_atomic(tmp_path / "out.wav", np.zeros((1000, 2), dtype=np.float32), 44100)
-    assert (tmp_path / "out.wav").exists()
+def test_write_npz_2d_stereo(tmp_path: Path) -> None:
+    """Test that _write_npz_atomic can write a 2D stereo audio array."""
+    _write_npz_atomic(tmp_path / "out.npz", np.zeros((1000, 2), dtype=np.float32))
+    assert (tmp_path / "out.npz").exists()
 
 
-def test_write_wav_3d_raises() -> None:
-    """Test that _write_wav_atomic raises an error for 3D audio arrays."""
+def test_write_npz_3d_raises() -> None:
+    """Test that _write_npz_atomic raises an error for 3D audio arrays."""
     with pytest.raises(ValueError, match="1D mono or 2D"):
-        _write_wav_atomic(Path("/tmp/x.wav"), np.zeros((10, 2, 2), dtype=np.float32), 44100)
+        _write_npz_atomic(Path("/tmp/x.npz"), np.zeros((10, 2, 2), dtype=np.float32))
 
 
-def test_write_wav_empty_channels_raises() -> None:
-    """Test that _write_wav_atomic raises an error for 2D arrays with zero channels."""
+def test_write_npz_empty_channels_raises() -> None:
+    """Test that _write_npz_atomic raises an error for 2D arrays with zero channels."""
     with pytest.raises(ValueError, match="at least one channel"):
-        _write_wav_atomic(Path("/tmp/x.wav"), np.zeros((10, 0), dtype=np.float32), 44100)
+        _write_npz_atomic(Path("/tmp/x.npz"), np.zeros((10, 0), dtype=np.float32))
 
 
 def test_connect_db_creates_directory(storage: LocalAudioStorageService, tmp_path: Path) -> None:
@@ -72,10 +73,12 @@ def test_connect_db_creates_directory(storage: LocalAudioStorageService, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_write_db_creates_wav_and_json(storage: LocalAudioStorageService) -> None:
-    """Test that write_db creates both WAV and JSON files for a given CollectorMessage."""
-    await storage.write_db(make_msg())
-    assert len(list(storage.data_root.glob("**/*.wav"))) == 1
+async def test_write_db_creates_channel_npz_and_json(storage: LocalAudioStorageService) -> None:
+    """Test that write_db creates per-channel NPZ and one JSON file per message."""
+    message = make_msg()
+    message["data"]["data"] = np.zeros((512, 2), dtype=np.float32)
+    await storage.write_db(message)
+    assert len(list(storage.data_root.glob("**/*.npz"))) == 2
     assert len(list(storage.data_root.glob("**/*.json"))) == 1
 
 
