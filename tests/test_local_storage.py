@@ -13,7 +13,7 @@ from base.audio_data import BaseAudioCollectorServiceData
 from base.local_storage import (
     LocalAudioStorageConfig,
     LocalAudioStorageService,
-    _write_npz_atomic,
+    _write_npz_atomic,  # type: ignore[reportPrivateUsage]
     router,
 )
 from concept.storage_service import CollectorMessage
@@ -80,6 +80,24 @@ async def test_write_db_creates_channel_npz_and_json(storage: LocalAudioStorageS
     await storage.write_db(message)
     assert len(list(storage.data_root.glob("**/*.npz"))) == 2
     assert len(list(storage.data_root.glob("**/*.json"))) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("audio", "error"),
+    [
+        (np.zeros((10, 2, 2), dtype=np.float32), "1D mono or 2D"),
+        (np.zeros((10, 0), dtype=np.float32), "at least one channel"),
+    ],
+)
+async def test_write_db_rejects_invalid_audio_shapes(
+    storage: LocalAudioStorageService, audio: np.ndarray, error: str
+) -> None:
+    """Test that write_db rejects unsupported audio shapes."""
+    message = make_msg()
+    message["data"]["data"] = audio
+    with pytest.raises(ValueError, match=error):
+        await storage.write_db(message)
 
 
 @pytest.mark.asyncio
