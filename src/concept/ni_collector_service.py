@@ -5,16 +5,12 @@ import nidaqmx
 from .collector_service import CollectorService, CollectorServiceConfig, CollectorServiceData
 from nidaqmx.stream_readers import AnalogSingleChannelReader
 from nidaqmx.constants import (
-    TerminalConfiguration,
-    SoundPressureUnits,
     ExcitationSource,
-    AcquisitionType,
     Coupling,
 )
 from nidaqmx.task._task import Task
 from concept.pydantic_serializers import SerializedNDArray
-from typing import Annotated, cast
-
+from typing import Annotated
 
 
 class NICollectorConfig(CollectorServiceConfig):
