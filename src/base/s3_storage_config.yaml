@@ -1,0 +1,16 @@
+api_port: 8113
+s3_sync_service:
+  class_path: S3SyncServiceBase
+  init_args:
+    config:
+      data_root: data
+      upload_every_n_files: 60
+      upload_every_seconds: 600
+      delete_after_upload: false
+    client:
+      class_path: base.s3_client.YandexS3Client
+      init_args:
+        config:
+          region: ru-central1
+          bucket: test-monitoring
+          prefix: obto3

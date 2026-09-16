@@ -169,7 +169,7 @@ def main(  # pragma: no cover
     """Main function to run the toy storage service."""
     setup_logging()
 
-    app = FastAPI()
+    app = FastAPI(title="Local Storage")
     app.include_router(router, prefix="/api")
     app.get("/")(lambda: "alive")
     app.state.storage = storage
