@@ -45,7 +45,7 @@ class YandexS3Credentials(BaseSettings):
 
 
 class YandexS3Client(S3StorageClient):
-    """Upload and delete objects in Yandex Cloud S3."""
+    """Upload objects to Yandex Cloud S3."""
 
     def __init__(self, config: YandexS3Config) -> None:
         credentials = YandexS3Credentials()
@@ -69,8 +69,3 @@ class YandexS3Client(S3StorageClient):
         full_key = self._full_key(key)
         logger.info("Uploading %s → s3://%s/%s", local_path, self._bucket, full_key)
         self._s3.upload_file(str(local_path), self._bucket, full_key)
-
-    def delete(self, key: str) -> None:
-        full_key = self._full_key(key)
-        logger.info("Deleting s3://%s/%s", self._bucket, full_key)
-        self._s3.delete_object(Bucket=self._bucket, Key=full_key)

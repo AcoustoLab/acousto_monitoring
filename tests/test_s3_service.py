@@ -34,8 +34,6 @@ class DummyClient(S3StorageClient):
             raise BotoCoreError()
         self.uploaded.append((local_path, key))
 
-    def delete(self, key: str) -> None: ...
-
 
 @pytest.fixture()
 def service(tmp_path: Path) -> S3SyncServiceBase:
@@ -60,7 +58,7 @@ def client_app(service: S3SyncServiceBase) -> TestClient:
 
 @pytest.fixture()
 def s3_client() -> YandexS3Client:
-    """YandexS3Client with mocked boto3 client to verify upload and delete calls."""
+    """YandexS3Client with mocked boto3 client to verify upload calls."""
     config = YandexS3Config(bucket="my-bucket", prefix="pfx")
     with (
         patch(
@@ -84,14 +82,6 @@ def test_upload_calls_boto(s3_client: YandexS3Client, tmp_path: Path) -> None:
     s3_client.upload(f, "2024/audio.wav")
     s3_client._s3.upload_file.assert_called_once_with(  # type: ignore
         str(f), "my-bucket", "pfx/2024/audio.wav"
-    )
-
-
-def test_delete_calls_boto(s3_client: YandexS3Client) -> None:
-    """Deleting a file calls boto3 client's delete_object with correct bucket and key."""
-    s3_client.delete("2024/audio.wav")
-    s3_client._s3.delete_object.assert_called_once_with(  # type: ignore
-        Bucket="my-bucket", Key="pfx/2024/audio.wav"
     )
 
 

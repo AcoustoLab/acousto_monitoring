@@ -13,10 +13,6 @@ class S3StorageClient(ABC):
     def upload(self, local_path: Path, key: str) -> None:
         """Upload a local file to object storage under the given key."""
 
-    @abstractmethod
-    def delete(self, key: str) -> None:
-        """Delete an object from storage by key."""
-
 
 class S3SyncConfigBase(BaseModel):
     """Configuration for S3 synchronization."""
