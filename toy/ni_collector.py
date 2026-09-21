@@ -1,4 +1,4 @@
-"""Toy script to run the collector service with a specific collector implementation."""
+"""Toy script to run the NI collector service."""
 
 from src.concept.ni_collector_service import NICollectorService
 from jsonargparse import auto_cli  # type: ignore
