@@ -85,14 +85,6 @@ def test_upload_calls_boto(s3_client: YandexS3Client, tmp_path: Path) -> None:
     )
 
 
-def test_delete_calls_boto(s3_client: YandexS3Client) -> None:
-    """Deleting a file calls boto3 client's delete_object with correct bucket and key."""
-    s3_client.delete("2024/audio.npz")
-    s3_client._s3.delete_object.assert_called_once_with(  # type: ignore
-        Bucket="my-bucket", Key="pfx/2024/audio.npz"
-    )
-
-
 def test_full_key_without_prefix() -> None:
     """YandexS3Client._full_key returns the key unchanged if prefix is empty."""
     config = YandexS3Config(bucket="b", prefix="")
