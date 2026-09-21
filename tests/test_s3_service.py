@@ -34,8 +34,6 @@ class DummyClient(S3StorageClient):
             raise BotoCoreError()
         self.uploaded.append((local_path, key))
 
-    def delete(self, key: str) -> None: ...
-
 
 @pytest.fixture()
 def service(tmp_path: Path) -> S3SyncServiceBase:
@@ -60,7 +58,7 @@ def client_app(service: S3SyncServiceBase) -> TestClient:
 
 @pytest.fixture()
 def s3_client() -> YandexS3Client:
-    """YandexS3Client with mocked boto3 client to verify upload and delete calls."""
+    """YandexS3Client with mocked boto3 client to verify upload calls."""
     config = YandexS3Config(bucket="my-bucket", prefix="pfx")
     with (
         patch(
