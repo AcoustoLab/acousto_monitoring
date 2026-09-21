@@ -129,13 +129,12 @@ class NIDevice:
             )
 
         # [channel, sample]
-        buffer = np.zeros(
-            (
-                len(self.config.channels),
-                self.config.samples_per_read,
-            ),
-            dtype=np.float64,
+        buffer_shape = (
+            self.config.samples_per_read
+            if len(self.config.channels) == 1
+            else (len(self.config.channels), self.config.samples_per_read)
         )
+        buffer = np.zeros(buffer_shape, dtype=np.float64)
 
         task.start()
 

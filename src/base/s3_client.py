@@ -67,5 +67,5 @@ class YandexS3Client(S3StorageClient):
 
     def upload(self, local_path: Path, key: str) -> None:
         full_key = self._full_key(key)
-        logger.info("Uploading %s → s3://%s/%s", local_path, self._bucket, full_key)
+        logger.info("Uploading %s -> s3://%s/%s", local_path, self._bucket, full_key)
         self._s3.upload_file(str(local_path), self._bucket, full_key)
