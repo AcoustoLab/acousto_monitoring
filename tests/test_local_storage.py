@@ -64,7 +64,7 @@ def test_write_npz_3d_raises() -> None:
 def test_write_npz_empty_channels_raises() -> None:
     """Test that _write_npz_atomic raises an error for 2D arrays with zero channels."""
     with pytest.raises(ValueError, match="at least one channel"):
-        _write_npz_atomic(Path("/tmp/x.npz"), np.zeros((10, 0), dtype=np.float32))
+        _write_npz_atomic(Path("/tmp/x.npz"), np.zeros((0, 10), dtype=np.float32))
 
 
 def test_connect_db_creates_directory(storage: LocalAudioStorageService, tmp_path: Path) -> None:
@@ -76,7 +76,7 @@ def test_connect_db_creates_directory(storage: LocalAudioStorageService, tmp_pat
 async def test_write_db_creates_channel_npz_and_json(storage: LocalAudioStorageService) -> None:
     """Test that write_db creates per-channel NPZ and one JSON file per message."""
     message = make_msg()
-    message["data"]["data"] = np.zeros((512, 2), dtype=np.float32)
+    message["data"]["data"] = np.zeros((2, 512), dtype=np.float32)
     await storage.write_db(message)
     assert len(list(storage.data_root.glob("**/*.npz"))) == 2
     assert len(list(storage.data_root.glob("**/*.json"))) == 1
@@ -87,7 +87,7 @@ async def test_write_db_creates_channel_npz_and_json(storage: LocalAudioStorageS
     ("audio", "error"),
     [
         (np.zeros((10, 2, 2), dtype=np.float32), "1D mono or 2D"),
-        (np.zeros((10, 0), dtype=np.float32), "at least one channel"),
+        (np.zeros((0, 10), dtype=np.float32), "at least one channel"),
     ],
 )
 async def test_write_db_rejects_invalid_audio_shapes(

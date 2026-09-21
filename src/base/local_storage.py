@@ -87,13 +87,13 @@ class LocalAudioStorageService(
 
         audio = item.data
         if audio.ndim not in {1, 2}:
-            raise ValueError("audio_data must be 1D mono or 2D frames/channels")
-        if audio.ndim == 2 and audio.shape[1] < 1:
+            raise ValueError("audio_data must be 1D mono or 2D channels/samples")
+        if audio.ndim == 2 and audio.shape[0] < 1:
             raise ValueError("audio_data must have at least one channel")
 
-        channel_count = 1 if audio.ndim == 1 else audio.shape[1]
+        channel_count = 1 if audio.ndim == 1 else audio.shape[0]
         for channel in range(channel_count):
-            channel_data = audio if audio.ndim == 1 else audio[:, channel]
+            channel_data = audio if audio.ndim == 1 else audio[channel, :]
             npz_path = target_dir / (
                 f"{collected_at:%H%M%S}_{item.recording_id}_channel{channel}.npz"
             )
@@ -114,8 +114,8 @@ class LocalAudioStorageService(
 def _write_npz_atomic(path: Path, audio: np.ndarray) -> None:
     """Write an audio channel to an NPZ file through a temporary path."""
     if audio.ndim not in {1, 2}:
-        raise ValueError("audio_data must be 1D mono or 2D frames/channels")
-    if audio.ndim == 2 and audio.shape[1] < 1:
+        raise ValueError("audio_data must be 1D mono or 2D channels/samples")
+    if audio.ndim == 2 and audio.shape[0] < 1:
         raise ValueError("audio_data must have at least one channel")
 
     tmp_path = path.with_suffix(path.suffix + ".tmp")
