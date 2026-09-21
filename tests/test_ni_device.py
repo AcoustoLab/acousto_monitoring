@@ -1,7 +1,6 @@
 """NI device tests."""
 
 from unittest.mock import MagicMock
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -10,8 +9,6 @@ from concept.ni_collector_service import (
     NICollectorConfig,
     NICollectorData,
     NIDevice,
-    Task,
-    AnalogSingleChannelReader,
     NIChannelConfig,
 )
 

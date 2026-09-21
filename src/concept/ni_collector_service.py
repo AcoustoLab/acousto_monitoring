@@ -225,4 +225,3 @@ class NICollectorService(CollectorService[CollectorServiceConfig, CollectorServi
     def record(self) -> CollectorServiceData:
         """Simulate recording by sleeping and returning dummy data."""
         return self.device.read()
-
